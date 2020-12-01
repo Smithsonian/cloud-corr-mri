@@ -1,3 +1,5 @@
+import os.path
+
 import baseband.vdif as vdif
 from pandas_appender import DF_Appender
 
@@ -51,8 +53,9 @@ def split(f, delta_t=1, nfiles=None):
                         break
                     nfiles -= 1
                 previous_second = seconds
-                root, ext = os.path.splitext(f)
-                new = root + '-' + str(seconds) + ext
+                head, tail = os.path.split(f)
+                basename, ext = os.path.splitext(tail)
+                new = basename + '-' + str(seconds) + ext
                 if os.path.isfile(new):
                     raise ValueError(new+' already exists')
                 fw = vdif.open(new, 'wb')
