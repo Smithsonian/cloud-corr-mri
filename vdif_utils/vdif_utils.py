@@ -1,4 +1,5 @@
 import os.path
+import sys
 
 import baseband.vdif as vdif
 from pandas_appender import DF_Appender
@@ -14,7 +15,11 @@ def index(f, limit=None):
 
         while True:
             offset = fr.tell()
-            frame = fr.read_frame()
+            try:
+                frame = fr.read_frame(edv=2, verify=False)
+            except Exception as e:
+                print('got exception {} reading frame {}, skipping'.format(str(e), count), file=sys.stderr)
+                raise
             station = frame.header.station  # ok to be a str because it is a category
             thread = frame.header['thread_id']
             seconds = frame.header['seconds']
@@ -35,7 +40,7 @@ def write_ordered(fin, df, fout):
     with vdif.open(fin, 'rb') as fr, vdif.open(fout, 'wb') as fw:
         for r in df.itertuples():
             fr.seek(r.offset)
-            frame = fr.read_frame()
+            frame = fr.read_frame(edv=2, verify=False)
             fw.write_frame(frame)
 
 
@@ -44,8 +49,12 @@ def split(f, delta_t=1, nfiles=None):
         fw = None
         previous_second = None
         while True:
-            frame = fr.read_frame()
+            frame = fr.read_frame(edv=2, verify=False)
             seconds = frame.header['seconds']
+
+            if frame.header['invalid_data']:
+                fw.write_frame(frame)
+                continue
 
             if previous_second is None or seconds >= previous_second + delta_t:
                 if nfiles is not None:
@@ -62,6 +71,6 @@ def split(f, delta_t=1, nfiles=None):
                 print('t={} file {}'.format(seconds, new))
 
             if seconds < previous_second:
-                raise ValueError('input was not strictly sorted by time')
+                print('input was not strictly sorted by time: saw {} after {}'.format(seconds, previous_second), file=sys.stderr)
 
             fw.write_frame(frame)
