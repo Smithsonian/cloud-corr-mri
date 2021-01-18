@@ -1,0 +1,26 @@
+Files to convert a docker image to a singularity image
+
+Ideally you would run this on a host that had both Docker and
+Singularity installed and sudo to root available, but I didn't have
+such a host.
+
+So I exported from eht-work (google cloud, Docker installed) and built
+the Singularity module cfa fringes, which I installed Singularity
+
+* Export the docker image to tar.gz
+
+* Put this .tar.gz file someplace on a webserver
+
+* use "sudo singularity build greg-difx-2.5.1.img greg-difx-2.5.1.def" to
+import the docker image into a singularity image
+
+* with the .tar.gz on the web visible to the outside world, you can
+probably build this remote without needing sudo:
+
+  "singularity remote login"
+  <paste your token from https://cloud.sylabs.io/builder>
+  "singularity build --remote greg-difx-2.5.1.img greg-difx-2.5.1.def"
+
+* When I originally made this, I thought I tried all of the options,
+but, on third thought, you can apparently do "sudo singularity build
+greg-difx-2-5.1.tar.gz
