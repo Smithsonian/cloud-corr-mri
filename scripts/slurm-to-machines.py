@@ -1,10 +1,11 @@
-#/usr/bin/env python
+#!/usr/bin/env python
 
 # if running inside a Slurm batch job, generate a difx-compatible machines file
 
 import os
 import subprocess
 import sys
+import socket
 
 
 def expand_slurm_nodelist(nodelist):
@@ -25,12 +26,19 @@ def emit(nodelist, cpus_on_node):
         if first == 2:
             first = 1
 
+
 def do_slurm():
     if 'SLURM_JOB_ID' not in os.environ:
         return False
 
     cpus_on_node = os.environ['SLURM_CPUS_ON_NODE'].split(',')
     nodelist = expand_slurm_nodelist(os.environ['SLURM_JOB_NODELIST'])
+
+    # the first node in nodelist is me,
+    # make sure it matches `hostname` so genmachines doesn't have a cow
+    hostname = socket.gethostname()
+    nodelist.pop(0)
+    nodelist.insert(0, hostname)
 
     length = len(cpus_on_node)
     if length != 1 and length != len(nodelist):

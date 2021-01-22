@@ -1,0 +1,36 @@
+#!/bin/bash
+##SBATCH -n 48 # Number of cores requested -- commandline
+##SBATCH -N 1 # Number of nodes requested -- commandline
+#SBATCH -t 10000 # Runtime in minutes
+#SBATCH -p blackhole,unrestricted,shared # Partition to submit to
+#SBATCH --mem-per-cpu=1000 # Memory per cpu in MB (see also --mem-per-cpu)
+#SBATCH --open-mode=append
+#SBATCH -o job_%j.out # Standard out goes to this file
+#SBATCH -e job_%j.err # Standard err goes to this filehostname
+#SBATCH --constraint="holyhdr" # holyscratch is only reliable with this constraint
+
+. ~/greg.sh
+cd ~/github/difx-try4-with-ipp
+DIFXROOT_OVERRIDE=$PWD . setup.bash
+source $DIFXROOT/bin/hops.bash
+
+cd $SLURM_SUBMIT_DIR
+
+echo SLURM_CPUS_ON_NODE = $SLURM_CPUS_ON_NODE
+echo SLURM_JOB_NODELIST = $SLURM_JOB_NODELIST
+
+cd $DIFX_BAND
+../slurm-to-machines.py $DIFX_INPUT > machines.$DIFX_INPUT
+
+echo "machines file is"
+cat machines.$DIFX_INPUT
+
+echo "running genmachines"
+genmachines -m machines.$DIFX_INPUT $DIFX_INPUT
+#rm machines.$DIFX_INPUT
+
+# only needed if we are ovesubscribing, which we aren't
+#export DIFX_MPIRUNOPTIONS="--oversubscribe"
+
+ln -s `which mpifxcorr` runmpifxcorr.$DIFX_VERSION
+startdifx --dont-calc -f --nomachines $DIFX_INPUT

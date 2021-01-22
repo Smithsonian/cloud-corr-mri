@@ -2,7 +2,6 @@
 
 import sys
 import os
-import socket
 import math
 
 
@@ -12,6 +11,9 @@ def estimate(base, cores=None):
 
     if not os.path.exists(base + '.input'):
         raise ValueError(base + '.input does not exist')
+
+    datastreams = '0'
+    baselines = '0'
 
     with open(base + '.input', 'r') as fd:
         for line in fd:
