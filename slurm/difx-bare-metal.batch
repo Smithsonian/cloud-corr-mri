@@ -12,7 +12,9 @@
 . ~/greg.sh
 cd ~/github/difx-try4-with-ipp
 DIFXROOT_OVERRIDE=$PWD . setup.bash
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/n/home02/glindahl/.conda/envs/eht38v2/lib  # for libjpeg
 source $DIFXROOT/bin/hops.bash
+echo LD_LIBRARY_PATH = $LD_LIBRARY_PATH
 
 cd $SLURM_SUBMIT_DIR
 
@@ -20,17 +22,35 @@ echo SLURM_CPUS_ON_NODE = $SLURM_CPUS_ON_NODE
 echo SLURM_JOB_NODELIST = $SLURM_JOB_NODELIST
 
 cd $DIFX_BAND
-../slurm-to-machines.py $DIFX_INPUT > machines.$DIFX_INPUT
 
-echo "machines file is"
+../slurm-to-machines.py $DIFX_INPUT > machines.$DIFX_INPUT
+echo "slurm machines file is"
 cat machines.$DIFX_INPUT
 
 echo "running genmachines"
-genmachines -m machines.$DIFX_INPUT $DIFX_INPUT
+export DIFX_MACHINES=machines.$DIFX_INPUT
+../genmachines-multinode.py $DIFX_INPUT
 #rm machines.$DIFX_INPUT
+BASE=`basename $DIFX_INPUT .input`
+echo difx machines
+cat $BASE.machines
+echo difx threads
+cat $BASE.threads
 
-# only needed if we are ovesubscribing, which we aren't
-#export DIFX_MPIRUNOPTIONS="--oversubscribe"
+# --oversubscribe -- probably not needed. when set, it implies "--mca mpi_yield_when_idle 1"
+# --map-by node means round robin scheduling of things in the machines file,
+#   instead of openmpi asking slurm how many slots each node has
+# --mca rmaps seq means to use the machines file in exact order
+DIFX_MPIRUNOPTIONS="--oversubscribe --map-by node --mca rmaps seq"
+# and we want our Conda / DiFX / HOPS stuff to flow to the compute nodes
+DIFX_MPIRUNOPTIONS="$DIFX_MPIRUNOPTIONS -x LD_LIBRARY_PATH"
 
-ln -s `which mpifxcorr` runmpifxcorr.$DIFX_VERSION
+export DIFX_MPIRUNOPTIONS
+
+echo DIFX_MPIRUNOPTIONS = $DIFX_MPIRUNOPTIONS
+
+if [ ! -f runmpifxcorr.$DIFX_VERSION ]; then
+  ln -s `which mpifxcorr` runmpifxcorr.$DIFX_VERSION
+fi
+
 startdifx --dont-calc -f --nomachines $DIFX_INPUT
