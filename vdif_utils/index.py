@@ -2,10 +2,12 @@ import sys
 
 import vdif_utils
 
-for f in sys.argv[1:]:
-    df = vdif_utils.index(f, limit=10)
+args = sys.argv
+program = args.pop(0)
+limit = int(args.pop(0))
 
-    print(df.dtypes)
+for f in args:
+    df = vdif_utils.index(f, limit=limit, only_seconds=True, verbose=True)
+
     print(df)
-    for r in df.itertuples():
-        print(r.seconds, r.frame_nr)
+    print(df.dtypes)
