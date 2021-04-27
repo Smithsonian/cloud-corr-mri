@@ -47,21 +47,28 @@ for base in sys.argv[1:]:
 
     hostname = socket.gethostname()
 
+    datastreams = 0
+    baselines = 0
+
     with open(base + '.input', 'r') as fd:
         for line in fd:
             if 'ACTIVE DATASTREAMS:' in line:
-                datastreams = line.rsplit(None, 1)[1]  # py2.7
+                datastreams = int(line.rsplit(None, 1)[1])
             if 'ACTIVE BASELINES:' in line:
-                baselines = line.rsplit(None, 1)[1]  # py2.7
+                baselines = int(line.rsplit(None, 1)[1])
 
-    nodes = 1 + int(datastreams) + int(baselines)
-    threads = int(math.ceil(_core_count() / int(baselines)))
+    if datastreams + baselines == 0:
+        # no work for this .input file
+        continue
+
+    nodes = 1 + datastreams + baselines
+    threads = math.ceil(_core_count() / baselines)
     threads = max(threads, 1)
-    cores = 1 + int(datastreams) + threads * int(baselines)  # 1 for fxmanager
+    cores = 1 + datastreams + threads * baselines
 
     print(base,
-          'datastreams='+datastreams,
-          'baselines='+baselines, 'threads='+str(threads),
+          'datastreams='+str(datastreams),
+          'baselines='+str(baselines), 'threads='+str(threads),
           'cores='+str(cores))
 
     with open(base + '.machines', 'w') as fd:
@@ -69,4 +76,6 @@ for base in sys.argv[1:]:
             print(hostname, file=fd)
 
     with open(base + '.threads', 'w') as fd:
-        print('NUMBER OF CORES:    {}\n{}'.format(1, threads), file=fd)
+        print('NUMBER OF CORES:    {}'.format(baselines), file=fd)
+        for _ in range(0, baselines):
+            print(threads, file=fd)
