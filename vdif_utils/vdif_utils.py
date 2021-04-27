@@ -144,13 +144,25 @@ def split(f, delta_t=1, nfiles=None):
     with vdif.open(f, 'rb') as fr:
         fw = None
         previous_second = None
+        starting_second = None
+        basename = None
         while True:
-            frame = fr.read_frame(edv=2, verify=False)
+            try:
+                frame = fr.read_frame(edv=2, verify=False)
+            except EOFError as e:
+                print('saw exception {} in {}, terminating'.format(e, basename), file=sys.stderr)
+                return
+            except Exception as e:
+                print('saw exception {}, skipping frame'.format(e), file=sys.stderr)
+                continue
             seconds = frame.header['seconds']
 
             if frame.header['invalid_data']:
                 fw.write_frame(frame)
                 continue
+
+            if starting_second is None:
+                starting_second = seconds
 
             if previous_second is None or seconds >= previous_second + delta_t:
                 if nfiles is not None:
@@ -158,9 +170,13 @@ def split(f, delta_t=1, nfiles=None):
                         break
                     nfiles -= 1
                 previous_second = seconds
-                head, tail = os.path.split(f)
-                basename, ext = os.path.splitext(tail)
-                new = basename + '-' + str(seconds) + ext
+
+                #head, tail = os.path.split(f)
+                #basename, ext = os.path.splitext(tail)
+                basename, ext = os.path.splitext(f)  # write output in the same directory as input
+
+                new = basename + '-' + str(seconds - starting_second) + ext
+
                 if os.path.isfile(new):
                     raise ValueError(new+' already exists')
                 fw = vdif.open(new, 'wb')
