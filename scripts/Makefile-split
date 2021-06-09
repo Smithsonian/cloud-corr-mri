@@ -1,0 +1,66 @@
+
+.NOTPARALLEL:
+
+all:
+
+clean:
+	rm -rf e18???-1-b?_10??.*
+
+vex:
+	vex2difx -f e18e22-1-b1.v2d
+	calcifMixed *.calc
+	#genmachines *.input
+
+run:
+	startdifx --dont-calc -f --nomachines *.input
+
+check:
+	rm -rf 3645
+	difx2mark4 -s ../ehtc-template.codes -e 3645 e18e22-1-b?_10??.difx
+
+ff:
+	rm -rf 3645/*/*.B.*
+	#../parFourfit.sh ../cf_1234 3645/*
+	FF_EXTRA_ARGS="-T 15" FF_POST_ARGS="set start  -0 stop -150" ../parFourfit.sh ../cf_1234 3645/*
+	fplot -d fplot-1-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_EXTRA_ARGS="-T 45" FF_POST_ARGS="set start -30 stop -120" ../parFourfit.sh ../cf_1234 3645/*
+	fplot -d fplot-2-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_EXTRA_ARGS="-T 75" FF_POST_ARGS="set start -60 stop -90" ../parFourfit.sh ../cf_1234 3645/*
+	fplot -d fplot-3-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_EXTRA_ARGS="-T 105" FF_POST_ARGS="set start -90 stop -60" ../parFourfit.sh ../cf_1234 3645/*
+	fplot -d fplot-4-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_EXTRA_ARGS="-T 135" FF_POST_ARGS="set start -120 stop -30" ../parFourfit.sh ../cf_1234 3645/*
+	fplot -d fplot-5-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_EXTRA_ARGS="-T 165" FF_POST_ARGS="set start -150" ../parFourfit.sh ../cf_1234 3645/*
+	fplot -d fplot-6-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+
+ffAutos:
+	# exhaustiveAutocorrs: DiFX 2.6.x
+	#../parFourfit_autoOnly.sh ../cf_1234 3645/*
+	FF_POST_ARGS="set start  -0 stop -150" ../parFourfit_autoOnly.sh ../cf_1234 3645/*
+	fplot -d fplot-1a-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_POST_ARGS="set start -30 stop -120" ../parFourfit_autoOnly.sh ../cf_1234 3645/*
+	fplot -d fplot-2a-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_POST_ARGS="set start -60 stop -90" ../parFourfit_autoOnly.sh ../cf_1234 3645/*
+	fplot -d fplot-3a-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_POST_ARGS="set start -90 stop -60" ../parFourfit_autoOnly.sh ../cf_1234 3645/*
+	fplot -d fplot-4a-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_POST_ARGS="set start -120 stop -30" ../parFourfit_autoOnly.sh ../cf_1234 3645/*
+	fplot -d fplot-5a-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+	FF_POST_ARGS="set start -150 stop -0" ../parFourfit_autoOnly.sh ../cf_1234 3645/*
+	fplot -d fplot-6a-%04d.ps 3645
+	rm -rf 3645/*/*.B.*
+
+alist:
+	#rm -f 3645.alist_v6; alist -o 3645.alist_v6 -v6 3645
