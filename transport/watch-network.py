@@ -28,11 +28,13 @@ def measure_netstat_s():
     return parse_netstat_s(completed.stdout.decode())
 
 
-def print_one(stat, data, previous_data, delta_t):
+def print_one(stat, data, previous_data, delta_t, strict=False):
     section, thing = stat
-    if thing not in data[section]:
+    if strict and thing not in data[section]:
         print('{} {} appears to not be a valid thing'.format(section, thing))
         print(data[section])
+        return
+    if thing not in data[section]:
         return
     delta = data[section][thing] - previous_data[section][thing]
     if delta > 0:
@@ -54,9 +56,10 @@ def loop():
                     ('Udp', 'receive buffer errors'),
                     ('Udp', 'send buffer errors'),
 
-                    ('Ip', 'dropped because of missing route'),
+                    ('Ip', 'dropped because of missing route'),  # RHEL
                     ('Ip', 'packets reassembled ok'),
                     ('Ip', 'incoming packets discarded'),
+                    ('Ip', 'outgoing packets dropped'),  # ubuntu 20.4
             ):
                 print_one(stat, data, previous_data, delta_t)
         previous_data = data
