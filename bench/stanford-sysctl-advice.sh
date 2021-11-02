@@ -13,7 +13,7 @@ sysctl -w net.ipv4.tcp_no_metrics_save = 1
 #sysctl -w net.ipv4.tcp_congestion_control = htcp
 
 # If you are using Jumbo Frames, also set this
-net.ipv4.tcp_mtu_probing = 1
+sysctl -w net.ipv4.tcp_mtu_probing = 1
 
 # recommended for CentOS7/Debian8 hosts
 #sysctl -w net.core.default_qdisc = fq
