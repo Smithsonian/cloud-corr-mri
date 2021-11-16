@@ -1,0 +1,44 @@
+language: python
+sudo: true
+dist: focal
+
+addons:
+  apt:
+    packages:
+    - pkg-config
+    - g++
+    - gfortran
+    - bison
+    - flex
+    - libexpat1-dev
+    - fftw3-dev
+    - autoconf
+    - automake
+    - libtool
+    - build-essential
+    - pgplot5
+    - subversion
+    - libgsl-dev
+    - libopenmpi-dev
+    - openmpi-bin
+
+python:
+  - 2.7
+
+matrix:
+  include:
+  - python: 2.7
+    env: TRAVIS_IPP=TRUE
+  - python: 2.7
+
+git:
+  depth: 99999
+
+install:
+  # ipp
+  - . travis-ipp.bash
+  - DIFXROOT_OVERRIDE=$PWD . setup.bash
+  - python2 install-difx $IPPARG
+
+script:
+  - /bin/true
