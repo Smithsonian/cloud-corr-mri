@@ -78,7 +78,7 @@ def schedule_resources(resources, psets):
 def difx_genmachines(pset):
     streams = len(pset['stations'])
     #baselines = (streams * (streams-1)) // 2  # historically comes from .input but we fake it
-    num_cores = pset['ray']['num_cores']
+    num_cores = pset['ray']['num_cpus']  # this is how num_cores is named here
     compute_cores = num_cores - 1 - streams  # 1 for fxmanager, 1 per stream
 
     # here's the biggest difference to the standard genmachines algorithm -- single machine only
@@ -98,7 +98,7 @@ def difx_genmachines(pset):
     threads_file = base + '.threads'
     with open(threads_file, 'w') as fd:
         print('NUMBER OF CORES:    {}'.format(len(threads)), file=fd)
-        for i in len(threads):
+        for i in range(len(threads)):
             print(threads[i])
 
 
@@ -117,7 +117,7 @@ def difx_run_worker(pset, system_kwargs, user_kwargs):
 
     # YYY --force  # even if output file exists
     # btw -np is set by the length of the machines file
-    run_args = 'startdifx --dont-calc -f --nomachines '+difx_input
+    run_args = 'echo startdifx --dont-calc -f --nomachines '+difx_input
     pset['run_args'] = run_args.split()
 
     # YYY allow helper nodes
@@ -134,7 +134,7 @@ def main():
     parser.add_argument('--resources', action='store', default='')
     args = parser.parse_args()
 
-    paramsurvey.init()
+    paramsurvey.init(backend='ray')
 
     psets = get_difx_joblists()
     add_costs(psets)
@@ -146,15 +146,8 @@ def main():
         if 'num_cores' in p:
             p['ray'] = {'num_cores': p.pop('num_cores')}
 
-    print('psets as json')
-    print(json.dumps(psets, indent=2))
-
     # example of how to return stdout
     user_kwargs = {'run_kwargs': {'stdout': subprocess.PIPE, 'encoding': 'utf-8'}}
-
-    print('psets')
-    print(psets)
-    exit()
 
     results = paramsurvey.map(difx_run_worker, psets, user_kwargs=user_kwargs)
 
