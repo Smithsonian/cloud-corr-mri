@@ -99,7 +99,7 @@ def difx_genmachines(pset):
     with open(threads_file, 'w') as fd:
         print('NUMBER OF CORES:    {}'.format(len(threads)), file=fd)
         for i in range(len(threads)):
-            print(threads[i])
+            print(threads[i], file=fd)
 
 
 def difx_run_worker(pset, system_kwargs, user_kwargs):
@@ -107,12 +107,13 @@ def difx_run_worker(pset, system_kwargs, user_kwargs):
 
     difx_input = pset['jobname'] + '.input'
     difx_genmachines(pset)
-    
+
     # openmpi:
     # if oversubscription, must set --oversubscribe  # which also sets --mca mpi_yield_when_idle 1
     # --map-by node # means 1/line, no smart OpenMPI tricks when used with slurm etc
     # --mca rmaps seq  # means use machines file sequentially
     # --allow-run-as-root  # depending on your container, you might want to know about this
+    # --bind-to-core
     os.environ['DIFX_MPIRUNOPTIONS'] = '--map-by node --mca rmaps seq'
 
     # YYY --force  # even if output file exists
@@ -126,10 +127,6 @@ def difx_run_worker(pset, system_kwargs, user_kwargs):
 
 
 def main():
-    '''
-    Tear down cluster when finished
-    '''
-
     parser = argparse.ArgumentParser(description='difx_paramsurvey_driver, run inside ray')
     parser.add_argument('--resources', action='store', default='')
     args = parser.parse_args()
