@@ -1,0 +1,3 @@
+# for editing
+flake8
+pylint
