@@ -52,7 +52,7 @@ def gce_installed_app_driver():
 
 
 # internal metadata service -- only if running inside of gce
-# this works from eht-cloud, maybe it wouldn't from other instances?
+# this works from eht-cloud and eht-work, maybe it wouldn't from other instances?
 def gce_internal_metadata_driver():
     gce_project = 'eht-cloud'
     driver = ComputeEngine('', '', project=gce_project,
