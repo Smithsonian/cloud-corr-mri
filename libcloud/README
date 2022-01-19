@@ -2,3 +2,6 @@ https://libcloud.readthedocs.io/en/stable/compute/drivers/gce.html
 
 In create-nodes.py, all 3 auth modes work
 
+For service account usage with API code like "Ray":
+export GOOGLE_APPLICATION_CREDENTIALS=eht-cloud-b038a415dc0d.json
+
