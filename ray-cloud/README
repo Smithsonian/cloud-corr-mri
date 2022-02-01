@@ -1,15 +1,59 @@
 https://docs.ray.io/en/latest/cluster/cloud.html
 
 pip install google-api-python-client  # it's in the ray venv
-pip install boto3  # not an explcit dependendy, needed by "ray exec"
+pip install boto3  # not an explcit dependency, needed by "ray exec"
 
 export GOOGLE_APPLICATION_CREDENTIALS="/home/glindahl/github/cloud-corr-mri/libcloud/eht-cloud-b038a415dc0d.json"
 
-Test that it's working at all:
+Test that these credentials work at all:
 pip install google-cloud-storage
 python ./google-test.py
 
-# https://docs.ray.io/en/latest/cluster/config.html#minimal-configuration
-I added what was needed to get it to work with 1.9.3 and 2.0.0.dev0
+And the real cluster:
 
-note that running things the ray way needs ray.init(address='auto')
+gce-docs-minimal.yaml
+
+$ ray up -y gce-docs-minimal.yaml
+$ ray attach gce-docs-minimal.yaml
+...
+$ ray down -y gce-docs-minimal.yaml
+
+counter-example.py is a working example, notice ray.init(address='auto')
+
+TODO
+
+install more stuff on the head and client nodes
+  os packages and pip
+setup_commands:
+  - pip install ...
+  I'm guessing these are run inside Docker if Docker
+  the docs do recommend setting up a fully installed Docker image instead, it's faster
+
+make a docker container for DiFX
+
+mount the storage bucket as a filesystem?
+  one way:
+    gcloud auth activate-service-account --key-file=somekey.json
+    gcsfuse my-bucket-name /root/output
+  can either do the fuse in the VMImage or in the docker container
+  another:
+    Cloud Filestore -- no, this is just NFS
+
+mount something for output
+  file_mounts is how ray does it
+  but we should use docker instead
+
+copy files in (like counter-example.py)
+copy files out ?
+
+https://docs.ray.io/en/latest/cluster/reference.html
+
+CLI:
+
+ray up
+ray exec
+ray submit
+ray attach
+ray rsync-{up,down}
+ray dashboard
+
