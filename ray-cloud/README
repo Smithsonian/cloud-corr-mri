@@ -13,3 +13,4 @@ python ./google-test.py
 I added what was needed to get it to work with 1.9.3 and 2.0.0.dev0
 
 note that running things the ray way needs ray.init(address='auto')
+e.g. paramsurvey.init({'ray': {'address': 'auto'}})
