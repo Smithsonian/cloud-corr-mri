@@ -1,6 +1,6 @@
 # Cloud Correlation MRI miscellaneous code repo
 
-Miscellaneous code related to EHT correlation in the cloud using DiFX.
+Miscellaneous work-in-progress code related to EHT correlation in the cloud using DiFX.
 
 * bench -- simple benchmarking scripts for cloud transport and recording
 * difx -- scripts related to making [DiFX](https://github.com/difx/)  easier to build and test
