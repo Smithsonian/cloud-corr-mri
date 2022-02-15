@@ -1,105 +1,105 @@
+import os
+import json
+
 from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
 
-# invisible requirement: "pip install cryptography"
-# invisible requirement: "pip install paramiko"
+# GCE invisible requirements: "pip install cryptography paramiko"
 
 ComputeEngine = get_driver(Provider.GCE)
 
-gce_project = 'eht-cloud'
 datacenter='us-central1-c'
 
 # https://libcloud.readthedocs.io/en/stable/compute/drivers/gce.html
 
-# 3 auth methods
-
-# service account -- good for limited perms
-# https://console.cloud.google.com/ and pick a project or create a new one
+# Cloud dashboard
 # IAM & Admin -> Serice Accounts -> Create service account
 # pick json for the private key, and download
-# service account id looks like an email
-# also need project id
+# in this example the service account has Role Owner
 
-#my_service_id = 'ray-autoscaler-sa-v1@eht-cloud.iam.gserviceaccount.com'
-#my_pem_file = 'eht-cloud-b038a415dc0d.json'  # created Jan 16 2022, in home-desktop/Download
-#
-#driver = ComputeEngine(my_service_id, my_pem_file,
-#                       project=gce_project,
-#                       datacenter=datacenter)
+def gce_service_account_driver():
+    my_pem_file = 'eht-cloud-b038a415dc0d.json'  # created Jan 16 2022, in home-desktop/Download
+    with open(my_pem_file) as config_fd:
+        j = json.load(config_fd)
+        service_id = j['client_email']    
+        project_id = j['project_id']
+        
+    driver = ComputeEngine(service_id, my_pem_file,
+                           project=project_id,
+                           datacenter=datacenter)
+    return driver
 
 # installed application -- good for code run by multiple users
 # open G Cloud Console and select project
-# click APIs & Auth on the left sidebar ** Actually APIs and Service -> Credentials
+# APIs and Service -> Credentials
 # +Create Credentials (at top)
-# Installed Application -> Other -> Create Client ID
-# save the Client ID and Client secret
-# also need the Project ID 
-
-#??? got an api key AIzaSyDdxLaq6NDTL_WA7r_5u2-emeKJnw8Odvo but there is no secret so that's not right
-
-# oath key
+# Oauth Client ID
 
 # greg client test 1
 # client_secret_1095685359415-to7ka253ii873kf8pfhgho6nhourbch9.apps.googleusercontent.com.json  # in home-desktop/Download
 
-#import json
-#
-#with open('client_secret_1095685359415-to7ka253ii873kf8pfhgho6nhourbch9.apps.googleusercontent.com.json') as config_fd:
-#    j = json.load(config_fd)
-#    client_id = j['installed']['client_id']
-#    client_secret = j['installed']['client_secret']
+def gce_installed_app_driver():
+    with open('client_secret_1095685359415-to7ka253ii873kf8pfhgho6nhourbch9.apps.googleusercontent.com.json') as config_fd:
+        j = json.load(config_fd)
+        client_id = j['installed']['client_id']
+        client_secret = j['installed']['client_secret']
+        project_id = j['installed']['project_id']
 
-#driver = ComputeEngine(client_id, client_secret,
-#                       datacenter=datacenter,
-#                       project=gce_project)
+    driver = ComputeEngine(client_id, client_secret,
+                           datacenter=datacenter,
+                           project=project_id)
+    return driver
+
 
 # internal metadata service -- only if running inside of gce
-# Only needs Project ID
-# this works from eht-cloud, maybe it wouldn't from other instances?
-driver = ComputeEngine('', '', project=gce_project,
-                       datacenter=datacenter)
+# this works from eht-cloud and eht-work, maybe it wouldn't from other instances?
+def gce_internal_metadata_driver():
+    gce_project = 'eht-cloud'
+    driver = ComputeEngine('', '', project=gce_project,
+                           datacenter=datacenter)
+    return driver
 
 
-# retrieve available images and sizes
-images = driver.list_images()
-# [<NodeImage: id=3, name=Gentoo 2008.0, driver=Rackspace  ...>, ...]
+def do_it(driver, name):
+    try:
+        print('Name:', name)
+        images = driver.list_images()
+        # [<NodeImage: id=3, name=Gentoo 2008.0, driver=Rackspace  ...>, ...]
 
-sizes = driver.list_sizes()
-# [<NodeSize: id=1, name=256 server, ram=256 ... driver=Rackspace ...>, ...]
-    # id=, name=, ram=, disk=, bandwidth=, price=, driver=, ...
+        sizes = driver.list_sizes()
+        # [<NodeSize: id=1, name=256 server, ram=256 ... driver=Rackspace ...>, ...]
 
-image = [i for i in images if i.name == 'ubuntu-1804-bionic-v20220111'][0]  # updated from example
-size = [s for s in sizes if s.name == 'e2-micro'][0]  # same as example
+        image = [i for i in images if i.name == 'ubuntu-1804-bionic-v20220111'][0]  # updated from example
+        size = [s for s in sizes if s.name == 'e2-micro'][0]  # same as example
 
-print('image', str(image))
-print('size', str(size))
+        print('image', str(image))
+        print('size', str(size))
+        print('Creating...')
 
-# generic example
-# https://libcloud.readthedocs.io/en/stable/compute/examples.html
-node = driver.create_node(name='libcloud-test-greg2', image=image, size=size)
-# <Node: uuid=..., name=test, state=3, public_ip=['1.1.1.1'],
-#   provider=Rackspace ...>
-print('Node:', str(node))
+        # generic example
+        # https://libcloud.readthedocs.io/en/stable/compute/examples.html
+        node = driver.create_node(name='libcloud-test-greg-'+name, image=image, size=size)
+        
+        # <Node: uuid=..., name=test, state=3, public_ip=['1.1.1.1'],
+        #   provider=Rackspace ...>
+        print('Node:', str(node.name))
 
-exit(0)
-
-# gce example
-
-#from libcloud.compute.deployment import ScriptDeployment
-#step = ScriptDeployment("echo whoami ; date ; ls -la")
-
-# XXX NotImplementedError: deploy_node not implemented for this driver
-# deploy_node takes the same base keyword arguments as create_node.
-#node = driver.deploy_node(name='libcloud-deploy-greg-1', image=image,
-#                          size=size,  #ex_metadata=metadata,
-#                          deploy=step)  #, ssh_key=PRIVATE_SSH_KEY_PATH)
-#
-#print('')
-#print('Node: %s' % (node))
-#print('')
-#print('stdout: %s' % (step.stdout))
-#print('stderr: %s' % (step.stderr))
-#print('exit_code: %s' % (step.exit_status))
+        print('Destroying...')
+        node.destroy()
+    except Exception as e:
+        print('saw exception', str(e))
 
 
+if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
+    print('Found a GOOGLE_APPLICATION_CREDENTIALS environment variable, ignoring it in this process.')
+    del os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 
+
+driver = gce_service_account_driver()
+do_it(driver, 'service-account')
+
+driver = gce_installed_app_driver()
+do_it(driver, 'installed-app')
+
+driver = gce_internal_metadata_driver()
+do_it(driver, 'internal-metadata')
