@@ -1,0 +1,10 @@
+paramsurvey[ray]
+aiohttp
+aiohttp-rpc
+requests
+#psutil
+
+# for development
+pytest
+flake8
+pylint
