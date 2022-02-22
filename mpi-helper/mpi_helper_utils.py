@@ -61,11 +61,12 @@ def schedule(lkey, l):
     global jobnumber
     cache_timeout()
     wanted_cores = l['wanted_cores'] - l['cores']
-    print('  schedule: wanted {} minus leader cores {}'.format(l['wanted_cores'], l['cores']))
+    print('  schedule: wanted {} cores in addition to leader cores {}'.format(wanted_cores, l['cores']))
     is_reschedule = False
     if l.get('fkeys'):
         is_reschedule = True
         wanted_cores -= sum(followers[f]['cores'] for f in l['fkeys'])
+        print('  reschedule, after existing follower cores we still want', wanted_cores)
 
     if wanted_cores > 0:
         fkeys = find_followers(wanted_cores)
@@ -109,11 +110,11 @@ def key(ip, pid):
     return '_'.join((ip, str(pid)))
 
 
-def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, remotesequence):
-    print('leader checkin, wanted:', wanted_cores)
-    # leader states: waiting -> scheduled -> running or nuked (all scheduled, or timeout)
+def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
     lkey = key(ip, pid)
-
+    print('leader checkin {}, wanted: {}, lseq_new: {}'.format(lkey, wanted_cores, lseq_new))
+    # leader states: waiting -> scheduled -> running or nuked (all scheduled, or timeout)
+    
     if lkey in followers:
         # well, this job might or might not have finished... so all we can do is:
         print('leader checkin used key of an existing follower')
@@ -122,22 +123,25 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, remotesequ
     l = leaders[lkey]
     l['t'] = time.time()
     state = l.get('state')
+    print('GREG old', l.get('lseq'), 'new', lseq_new)
 
-    if l.get('remotesequence') != remotesequence:
-        print('  leader sequence different, old: {}, new: {}, old-state: {}'.format(l.get('remotesequence'), remotesequence, state))
+    if l.get('lseq') != lseq_new:
+        print('  leader sequence different, old: {}, new: {}, old-state: {}'.format(l.get('lseq'), lseq_new, state))
         # this leader is not the same one as in the table...
         if state == 'scheduled' or state == 'running':
-            print('  setting state to None')
-            # and so this job must have finished, one way or another
-            # XXX what to do about followers? if 'scheduled'
-            # if scheduled and if this jobnumber, then unschedule them
+            print('  changing state from {} to None'.format(state))
             state = None
-        elif 'remotesequence' in l:
+            # this job must have finished, one way or another
+            # just throw this info away, followers will check back in for new work anyway
+            if 'fkeys' in l:
+                del l['fkeys']
+        elif 'lseq' in l:
             # don't print this if the leader is brand new
             print('  new state is', state)
 
     try_to_schedule = False
     if state == 'scheduled':
+        print('  leader is already scheduled')
         valid_fkeys = []
         for f in l['fkeys']:
             if f not in followers:
@@ -151,15 +155,17 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, remotesequ
             else:
                 valid_fkeys.append(f)
         if len(valid_fkeys) != len(l['fkeys']):
+            print('  not all followers still exist, so triggering a new schedule')
             try_to_schedule = True
             l['fkeys'] = valid_fkeys
-    elif state == 'waiting':
-        try_to_schedule = True
-    else:  # state is None, this is a new-to-us leader
+    else:
+        # if state is None, this is a new-to-us leader
+        # if it's waiting, we overwrite with identical information
+        print('  overwriting leader state')
         l['state'] = 'waiting'
         l['cores'] = cores
         l['wanted_cores'] = int(wanted_cores)
-        l['remotesequence'] = remotesequence
+        l['lseq'] = lseq_new
         l['pubkey'] = pubkey
         l['jobnumber'] = None
         try_to_schedule = True
@@ -168,20 +174,23 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, remotesequ
         print('  before schedule:', l)
         schedule(lkey, l)
         print('  after schedule:', l)
+    else:
+        print('  have an existing schedule with {} followers'.format(len(l['fkeys'])))
 
     # return schedule or watever
 
     if l['state'] == 'scheduled':
+        print('  returning a schedule with {} followers'.format(len(l['fkeys'])))
         return make_leader_return(l)
     else:
         print('  did not schedule')
 
 
-def follower_checkin(ip, cores, pid, remotestate, remotesequence):
-    print('follower checkin')
-    # follower states: available -> assigned -> nuked (timeout, etc)
-    # remote follower states: sequence, available, assigned
+def follower_checkin(ip, cores, pid, remotestate, fseq_new):
     k = key(ip, pid)
+    print('follower checkin', k)
+    # follower states: available -> assigned -> working
+    # remote follower states: available, assigned
 
     if k in leaders:
         # existing leader is now advertising it is a follower
@@ -199,14 +208,16 @@ def follower_checkin(ip, cores, pid, remotestate, remotesequence):
     f['t'] = time.time()
     state = f.get('state')
 
-    if f.get('remotesequence') != remotesequence:
-        print('  sequence comaprison old: {} new: {}  old-state: {}'.format(f.get('remotesequence'), remotesequence, state))
+    if f.get('fseq') != fseq_new:
+        print('  follower sequence different old: {} new: {}  old-state: {}'.format(f.get('fseq'), fseq_new, state))
         if state == 'assigned':
             print('  setting state to None')
             state = None
-        elif 'remotesequence' in f:  # don't print this if the follower is brand new
+        elif 'fseq' in f:  # don't print this if the follower is brand new
             print('  keeping state', state)
             pass
+
+    f['fseq'] = fseq_new
 
     if state == 'assigned' and remotestate == 'available':
         f['state'] = 'working'

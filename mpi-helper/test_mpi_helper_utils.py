@@ -41,9 +41,9 @@ def test_leadfollow():
     assert not ret, 'leadfollow leader must check in before scheduled'
     ret = l(lseq)
     assert len(ret['followers']) != 0, 'leadfollow leader should schedule'
-    print('GREG')
-    ret = f(fseq)  # XXX getting seq 1 and None
-    assert 'leader' in ret, 'leadfollow follower receives schedule'  # XXX failing here
+    ret = f(fseq)
+    assert ret, 'follower is scheduled'
+    assert 'leader' in ret, 'leadfollow follower receives schedule'
     assert 'pubkey' in ret, 'leadfollow follower receives schedule'
 
     print('\nleadfollow enough cores to start l f l f')
@@ -54,8 +54,9 @@ def test_leadfollow():
     ret = f(fseq)
     assert not ret
     ret = l(lseq)
-    assert 'followers' in ret
+    assert ret['followers'], 'leader sees job has scheduled'
     ret = f(fseq)
+    assert ret, 'follower sees job has scheduled'
     assert 'leader' in ret
     assert 'pubkey' in ret
 
