@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+import os.path
 import socket
 
 url = "http://localhost:8889/jsonrpc"
@@ -11,6 +12,19 @@ ip = socket.gethostbyname('localhost')
 def get_pubkey():
     with open(os.path.expanduser('~/.ssh/id_rsa.pub')) as f:
         return f.read()
+
+
+def deploy_pubkey(pubkey):
+    keyfile = os.path.expanduser('~/.ssh/authorized_keys')
+    if os.path.exists(keyfile):
+        with open(keyfile) as f:
+            existing = f.read()
+        if pubkey in existing:
+            return
+
+    with open(keyfile, 'a') as f:
+        f.write(pubkey)
+    os.chmod(keyfile, 0o600)
 
 
 def leader_checkin(cores, wanted_cores, pubkey):

@@ -3,8 +3,10 @@ aiohttp
 aiohttp-rpc
 requests
 #psutil
+requests
 
 # for development
 pytest
 flake8
 pylint
+pyfakefs

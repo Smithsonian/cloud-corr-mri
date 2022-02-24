@@ -93,6 +93,8 @@ def schedule(lkey, l):
             jobnumber += 1
 
         l['state'] = 'scheduled'
+        if len(fkeys) == 0:  # job fits the leader
+            l['state'] = 'running'
         return True
     print('  failed to schedule')
 
@@ -102,7 +104,7 @@ def make_leader_return(l):
     ret = []
     for f in l['fkeys']:
         ret.append({'fkey': f, 'cores': followers[f]['cores']})
-    return {'followers': ret}
+    return {'followers': ret, 'state': l['state']}
 
 
 def key(ip, pid):
@@ -123,7 +125,6 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
     l = leaders[lkey]
     l['t'] = time.time()
     state = l.get('state')
-    print('GREG old', l.get('lseq'), 'new', lseq_new)
 
     if l.get('lseq') != lseq_new:
         print('  leader sequence different, old: {}, new: {}, old-state: {}'.format(l.get('lseq'), lseq_new, state))
@@ -179,7 +180,7 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
 
     # return schedule or watever
 
-    if l['state'] == 'scheduled':
+    if l['state'] in {'scheduled', 'running'}:
         print('  returning a schedule with {} followers'.format(len(l['fkeys'])))
         return make_leader_return(l)
     else:
@@ -189,8 +190,7 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
 def follower_checkin(ip, cores, pid, remotestate, fseq_new):
     k = key(ip, pid)
     print('follower checkin', k)
-    # follower states: available -> assigned -> working
-    # remote follower states: available, assigned
+    # follower states: available -> assigned -> running
 
     if k in leaders:
         # existing leader is now advertising it is a follower
@@ -220,11 +220,11 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
     f['fseq'] = fseq_new
 
     if state == 'assigned' and remotestate == 'available':
-        f['state'] = 'working'
+        f['state'] = 'running'
         print('  returning a schedule to the follower')
-        return {'leader': f['leader'], 'pubkey': f['pubkey']}
+        return {'leader': f['leader'], 'pubkey': f['pubkey'], 'state': 'assigned'}
 
-    if f.get('state') == 'working':
+    if f.get('state') == 'running':
         del f['leader']
         del f['pubkey']
     f['state'] = 'available'
