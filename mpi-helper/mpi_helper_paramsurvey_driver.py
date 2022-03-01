@@ -1,28 +1,16 @@
 import argparse
 import time
 import os
-import socket
 import signal
-import subprocess
 import sys
 
 import paramsurvey
-from paramsurvey.utils import subprocess_run_worker
 
 import mpi_helper_client as client
-import mpi_helper_utils as utils
-
-
-def mpi_run(pset, system_kwargs, user_kwargs):
-    # leader: make hostsfile
-    # leader: set up known hosts: ssh-keyscan -H 'cat HOSTFILE' >> ~/.ssh/known_hosts
-    # invoke mpirun
-    # when done, return success or failure
-    # I guess failure is an exception?
-    pass
 
 
 # Google cloud HPC checklist https://cloud.google.com/architecture/best-practices-for-using-mpi-on-compute-engine#checklist
+# Google storage: https://cloud.google.com/storage/docs/best-practices
 
 def leader(pset, system_kwargs, user_kwargs):
     print('I am leader and my pid is {}'.format(os.getpid()))
@@ -44,11 +32,8 @@ def leader(pset, system_kwargs, user_kwargs):
         if ret is None:
             continue
 
-        # XXX always scheduled never running
-
-
         if ret['state'] == 'running':
-            cmd = 'mpirun -np {} ./a.out'.format(int(wanted)).split()
+            cmd = pset['run_args'].format(int(wanted)).split()
             print('leader about to run', cmd)
             mpi_proc = client.run_mpi(cmd)
             print('leader just ran MPI and mpi_proc is', mpi_proc)
@@ -111,7 +96,7 @@ def main():
     paramsurvey.init(backend='multiprocessing', ncores=4)
 
     psets = [
-        {'kind': 'leader', 'ncores': 1, 'run_args': 'mpirun blah blah', 'wanted': 3},
+        {'kind': 'leader', 'ncores': 1, 'run_args': 'mpirun -np {} ./a.out', 'wanted': 3},
         {'kind': 'follower', 'ncores': 1},
         {'kind': 'follower', 'ncores': 1},
     ]
