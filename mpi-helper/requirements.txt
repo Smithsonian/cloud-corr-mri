@@ -2,8 +2,10 @@ paramsurvey[ray]
 aiohttp
 aiohttp-rpc
 requests
-#psutil
+psutil
 requests
+aiohttp
+aiohttp_rpc
 
 # for development
 pytest

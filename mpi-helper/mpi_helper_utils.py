@@ -1,5 +1,9 @@
 import time
 from collections import defaultdict
+import multiprocessing
+import os
+
+import psutil
 
 
 leaders = defaultdict(dict)
@@ -94,6 +98,7 @@ def schedule(lkey, l):
 
         l['state'] = 'scheduled'
         if len(fkeys) == 0:  # job fits the leader
+            print('leader-only, setting state to running')
             l['state'] = 'running'
         return True
     print('  failed to schedule')
@@ -146,19 +151,29 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
         valid_fkeys = []
         for f in l['fkeys']:
             if f not in followers:
+                print('      not in followers')
                 pass
-            elif followers[f]['state'] != 'assigned':
+            elif followers[f]['state'] not in {'assigned', 'running'}:  # XXX test 'running'
                 # for example, follower timed out and then checked in
+                print('      not assigned or running, but ', followers[f]['state'])
                 pass
             elif followers[f]['jobnumber'] != l['jobnumber']:
                 # for example, follower timed out, checked in, was assigned to some other job
+                print('      wrong jobnumber')
                 pass
             else:
                 valid_fkeys.append(f)
         if len(valid_fkeys) != len(l['fkeys']):
             print('  not all followers still exist, so triggering a new schedule')
+            print('    old valid fkeys:', l['fkeys'])
+            print('    new valid fkeys:', valid_fkeys)
             try_to_schedule = True
             l['fkeys'] = valid_fkeys
+        else:
+            # are we running?
+            if all([followers[f]['state'] == 'running' for f in valid_fkeys]):
+                print('GREG GREG GREG leader is running')
+                l['state'] = 'running'
     else:
         # if state is None, this is a new-to-us leader
         # if it's waiting, we overwrite with identical information
@@ -225,7 +240,21 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
         return {'leader': f['leader'], 'pubkey': f['pubkey'], 'state': 'assigned'}
 
     if f.get('state') == 'running':
+        print('  destroying follower schedule')
         del f['leader']
         del f['pubkey']
     f['state'] = 'available'
     f['cores'] = cores
+
+
+def core_count():
+    try:
+        # recent Linux
+        return len(os.sched_getaffinity(0))
+    except (AttributeError, NotImplementedError, OSError):
+        try:
+            # Windows, MacOS, FreeBSD
+            return len(psutil.Process().cpu_affinity())
+        except (AttributeError, NotImplementedError, OSError):
+            # older Linux, MacOS. Can raise NotImplementedError
+            return multiprocessing.cpu_count()
