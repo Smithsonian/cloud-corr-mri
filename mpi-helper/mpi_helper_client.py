@@ -1,13 +1,10 @@
 import requests
-import json
 import os
 import os.path
 import socket
 import subprocess
 
 url = "http://localhost:8889/jsonrpc"
-pid = os.getpid()
-ip = socket.gethostbyname('localhost')
 
 
 def get_pubkey():
@@ -30,7 +27,7 @@ def deploy_pubkey(pubkey):
 
 def leader_checkin(cores, wanted_cores, pubkey, state, lseq):
     pid = os.getpid()
-    ip = socket.gethostbyname('localhost')
+    ip = socket.gethostname()
     payload = {
         'method': 'leader_checkin',
         'params': [ip, cores, pid, wanted_cores, pubkey, state, lseq],
@@ -45,7 +42,7 @@ def leader_checkin(cores, wanted_cores, pubkey, state, lseq):
 
 def follower_checkin(cores, state, fseq):
     pid = os.getpid()
-    ip = socket.gethostbyname('localhost')
+    ip = socket.gethostname()
     payload = {
         'method': 'follower_checkin',
         'params': [ip, cores, pid, state, fseq],
