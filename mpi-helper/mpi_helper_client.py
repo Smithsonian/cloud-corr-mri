@@ -59,7 +59,7 @@ def follower_checkin(cores, state, fseq):
 
 
 def run_mpi_helper():
-    return subprocess.Popen(['python', './mpi-helper-server.py'])
+    return subprocess.Popen(['python', './mpi_helper_server.py'])
 
 
 def check_mpi_helper(proc):
