@@ -1,5 +1,8 @@
 import os.path
 import stat
+import pytest
+
+import requests_mock
 
 import mpi_helper_client
 
@@ -24,3 +27,23 @@ def test_pubkey(fs):  # pyfakefs
     assert stat.filemode(os.stat(keyfile).st_mode) == '-rw-------'
     with open(keyfile) as f:
         assert f.read() == fake  # make sure it doesn't write twice
+
+
+def test_jsonrpc_retries():
+    with requests_mock.Mocker() as m:
+        kwargs = {'status_code': 500}
+        m.post(requests_mock.ANY, **kwargs)
+
+        with pytest.raises(ValueError):
+            for i in range(1000):
+                ret = mpi_helper_client.leader_checkin(1, 1, 1, 1, 1)
+        assert i > 1, 'leader does not immediately crash'
+        assert 'result' in ret, 'leader returns a result'
+        assert ret['result'] is None, 'leader returns a None result'
+
+        with pytest.raises(ValueError):
+            for i in range(1000):
+                ret = mpi_helper_client.follower_checkin(1, 1, 1)
+        assert i > 1
+        assert 'result' in ret
+        assert ret['result'] is None

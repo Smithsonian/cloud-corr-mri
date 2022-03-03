@@ -25,7 +25,7 @@ def deploy_pubkey(pubkey):
     os.chmod(keyfile, 0o600)
 
 
-exception_list = []
+leader_exceptions = []
 
 
 def leader_checkin(cores, wanted_cores, pubkey, state, lseq):
@@ -40,13 +40,16 @@ def leader_checkin(cores, wanted_cores, pubkey, state, lseq):
 
     try:
         response = requests.post(url, json=payload).json()
-        exception_list.clear()
+        leader_exceptions.clear()
     except Exception as e:
-        exception_list.append(str(e))
-        if len(exception_list) > 100:
-            raise ValueError('too many leader_checkin exceptions ({})'.format(len(exception_list))) from e
+        leader_exceptions.append(str(e))
+        if len(leader_exceptions) > 100:
+            raise ValueError('too many leader_checkin exceptions ({})'.format(len(leader_exceptions))) from e
         response = {'result': None}  # clients expect this
     return response
+
+
+follower_exceptions = []
 
 
 def follower_checkin(cores, state, fseq):
@@ -61,11 +64,11 @@ def follower_checkin(cores, state, fseq):
 
     try:
         response = requests.post(url, json=payload).json()
-        exception_list.clear()
+        follower_exceptions.clear()
     except Exception as e:
-        exception_list.append(str(e))
-        if len(exception_list) > 100:
-            raise ValueError('too many follower_checkin exceptions ({})'.format(len(exception_list))) from e
+        follower_exceptions.append(str(e))
+        if len(follower_exceptions) > 100:
+            raise ValueError('too many follower_checkin exceptions ({})'.format(len(follower_exceptions))) from e
         response = {'result': None}  # clients expect this
     return response
 
