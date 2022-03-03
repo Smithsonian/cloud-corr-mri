@@ -25,6 +25,9 @@ def deploy_pubkey(pubkey):
     os.chmod(keyfile, 0o600)
 
 
+exception_list = []
+
+
 def leader_checkin(cores, wanted_cores, pubkey, state, lseq):
     pid = os.getpid()
     ip = socket.gethostname()
@@ -34,9 +37,15 @@ def leader_checkin(cores, wanted_cores, pubkey, state, lseq):
         'jsonrpc': '2.0',
         'id': 0,
     }
-    response = requests.post(url, json=payload).json()
 
-    # XXX error handling -- repeat errors should cause exception
+    try:
+        response = requests.post(url, json=payload).json()
+        exception_list.clear()
+    except Exception as e:
+        exception_list.append(str(e))
+        if len(exception_list) > 100:
+            raise ValueError('too many leader_checkin exceptions ({})'.format(len(exception_list))) from e
+        response = {'result': None}  # clients expect this
     return response
 
 
@@ -49,23 +58,51 @@ def follower_checkin(cores, state, fseq):
         'jsonrpc': '2.0',
         'id': 0,
     }
-    response = requests.post(url, json=payload).json()
 
-    # XXX error handling -- repeat errors should cause exception
+    try:
+        response = requests.post(url, json=payload).json()
+        exception_list.clear()
+    except Exception as e:
+        exception_list.append(str(e))
+        if len(exception_list) > 100:
+            raise ValueError('too many follower_checkin exceptions ({})'.format(len(exception_list))) from e
+        response = {'result': None}  # clients expect this
     return response
 
 
 def run_mpi_helper():
+    # We can't really use capture_output/stdin/stdout here because we have no way to repeatedly call .communicate()
+    # XXX add a timer() routine to paramsurvey.map()?
     return subprocess.Popen(['python', './mpi_helper_server.py'])
 
 
 def check_mpi_helper(proc):
+    # proc.communicate(timeout=1)
+    # TimeoutExpired: -- continue
+    # outs, errs = proc.communicate() *if* user specified kwargs, else None, None
+    # finally the status is in .poll()
+    # to imitate subprocess.run return a subprocess.CompletedProcess object
+    # (args, returncode, stdout, stderr, check_returncode)
     return proc.poll()
 
 
-def run_mpi(cmd):
-    return subprocess.Popen(cmd)
+def run_mpi(cmd, **kwargs):
+    if 'capture_output' in kwargs:
+        kwargs['stdout'] = subprocess.PIPE
+        kwargs['stderr'] = subprocess.PIPE
+        if 'encoding' not in kwargs:
+            kwargs['encoding'] = 'utf-8'
+    return subprocess.Popen(cmd, **kwargs)
 
 
 def check_mpi(proc):
-    return proc.poll()
+    try:
+        outs, errs = proc.communicate(timeout=0.01)
+    except subprocess.TimeoutExpired:
+        return proc.poll()
+
+
+def finish_mpi(proc):
+    outs, errs = proc.communicate()
+    returncode = proc.poll()
+    return subprocess.CompletedProcess(args=None, returncode=returncode, stdout=outs, stderr=errs)

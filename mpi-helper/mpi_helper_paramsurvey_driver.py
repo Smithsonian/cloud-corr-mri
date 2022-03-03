@@ -12,6 +12,19 @@ import mpi_helper_client as client
 # Google cloud HPC checklist https://cloud.google.com/architecture/best-practices-for-using-mpi-on-compute-engine#checklist
 # Google storage: https://cloud.google.com/storage/docs/best-practices
 
+def leader_start_mpi(pset, ret, wanted, user_kwargs):
+    # XXX generate special difx hostfile
+    # ret['followers'] is a list of fkeys and cores
+    # get hostnames out of the fkeys
+
+    cmd = pset['run_args'].format(int(wanted)).split()
+    print('leader about to run', cmd)
+    run_kwargs = pset.get('run_kwargs') or user_kwargs.get('run_kwargs') or {}
+    mpi_proc = client.run_mpi(cmd, **run_kwargs)
+    print('leader just ran MPI and mpi_proc is', mpi_proc)
+    return mpi_proc
+
+
 def leader(pset, system_kwargs, user_kwargs):
     print('I am leader and my pid is {}'.format(os.getpid()))
     pubkey = client.get_pubkey()
@@ -33,21 +46,24 @@ def leader(pset, system_kwargs, user_kwargs):
             continue
 
         if ret['state'] == 'running':
-            cmd = pset['run_args'].format(int(wanted)).split()
-            print('leader about to run', cmd)
-            mpi_proc = client.run_mpi(cmd)
-            print('leader just ran MPI and mpi_proc is', mpi_proc)
+            if state == 'running':
+                assert mpi_proc is not None
+                continue
+            mpi_proc = leader_start_mpi(pset, ret, wanted, user_kwargs)
             state = 'running'
         elif ret['state'] == 'waiting' and mpi_proc is not None:
-            # oh oh!
-            print('leader waiting and mpi_proc is', mpi_proc)
+            # oh oh! mpi-helper thinks something bad happened. perhaps one of my followers timed out?
+            mpi_proc.kill()
+            completed = client.finish_mpi(mpi_proc)
             status = client.check_mpi(mpi_proc)
-            raise ValueError('mpi process exited: '+str(status))
+            return({'cli': completed})
 
         if mpi_proc:
             status = client.check_mpi(mpi_proc)
             if status is not None:
-                break
+                # a normal exit
+                completed = client.finish_mpi(mpi_proc)
+                return({'cli': completed})
 
         time.sleep(0.1)
     return
@@ -119,7 +135,7 @@ def main():
     status = client.check_mpi_helper(helper_proc)
     if status is not None:
         print('driver: looked at mpi_helper and it had already existed with status', str(status))
-    ret = os.kill(helper_proc.pid, signal.SIGHUP)  # XXX perhaps make sure this worked?
+    helper_proc.kill()
 
     for r in results.itertuples():
         # r.cli is a subprocess.CompletedProcess object
