@@ -1,6 +1,6 @@
 from functools import partial
 
-from mpi_helper_utils import leader_checkin, follower_checkin, clear
+from mpi_helper_server import leader_checkin, follower_checkin, clear
 
 
 # mock time.time()
