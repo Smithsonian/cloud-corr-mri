@@ -1,12 +1,17 @@
 import argparse
 import time
 import os
-import signal
 import sys
+import subprocess
+import signal
+import functools
 
 import paramsurvey
 
 import mpi_helper_client as client
+
+
+sigint_count = 0
 
 
 # Google cloud HPC checklist https://cloud.google.com/architecture/best-practices-for-using-mpi-on-compute-engine#checklist
@@ -44,26 +49,39 @@ def leader(pset, system_kwargs, user_kwargs):
         ret = ret['result']
         if ret is None:
             continue
+        if ret['state'] == 'exiting':
+            print('driver leader: received exiting status')
+            return
 
         if ret['state'] == 'running':
             if state == 'running':
                 assert mpi_proc is not None
-                continue
-            mpi_proc = leader_start_mpi(pset, ret, wanted, user_kwargs)
-            state = 'running'
+            else:
+                mpi_proc = leader_start_mpi(pset, ret, wanted, user_kwargs)
+                print('driver: leader just started mpi proc and poll returns', client.check_mpi(mpi_proc))
+                state = 'running'
         elif ret['state'] == 'waiting' and mpi_proc is not None:
             # oh oh! mpi-helper thinks something bad happened. perhaps one of my followers timed out?
-            mpi_proc.kill()
+            # XXX did the mpi helper server send all my followers to exiting?
+            mpi_proc.send_signal(signal.SIGINT)
             completed = client.finish_mpi(mpi_proc)
             status = client.check_mpi(mpi_proc)
-            return({'cli': completed})
+            return {'cli': completed}
 
         if mpi_proc:
             status = client.check_mpi(mpi_proc)
+            print('driver: leader checking mpirun: ', status)
+            os.system('ps')
             if status is not None:
-                # a normal exit
-                completed = client.finish_mpi(mpi_proc)
-                return({'cli': completed})
+                print('driver: leader observes normal exit')
+                state = 'exiting'
+                completed = client.finish_mpi(mpi_proc)  # should complete immediately
+                for _ in range(100):
+                    ret = client.leader_checkin(ncores, wanted, pubkey, state, lseq)
+                    print('driver: leader checkin returned', ret)
+                    if ret['result'] and ret['result']['state'] == 'exiting':
+                        break
+                return {'cli': completed}
 
         time.sleep(0.1)
     return
@@ -76,17 +94,19 @@ def follower(pset, system_kwargs, user_kwargs):
     ncores = pset['ncores']
 
     while True:
+        print('driver: follower checkin with state', state)
         ret = client.follower_checkin(ncores, state, fseq)
         print('driver: follower checkin returned', ret)
         ret = ret['result']
         if ret is None:
             continue
 
-        if ret['state'] == 'assigned':
+        if ret['state'] == 'assigned' and state != 'assigned':
+            # do this only once
             client.deploy_pubkey(ret['pubkey'])
-        elif state == 'running':
-            if ret['state'] == 'exit':
-                return
+        elif ret['state'] == 'exiting':
+            print('driver: follower told to exit')
+            return
 
         state = ret['state']
         time.sleep(1.0)
@@ -94,10 +114,32 @@ def follower(pset, system_kwargs, user_kwargs):
 
 def run_mpi_multinode(pset, system_kwargs, user_kwargs):
     if pset['kind'] == 'leader':
-        leader(pset, system_kwargs, user_kwargs)
+        return leader(pset, system_kwargs, user_kwargs)
 
     if pset['kind'] == 'follower':
-        follower(pset, system_kwargs, user_kwargs)
+        return follower(pset, system_kwargs, user_kwargs)
+
+
+def tear_down_helper(helper_proc):
+    helper_proc.send_signal(signal.SIGHUP)
+    for _ in range(10):
+        status = client.check_mpi_helper(helper_proc)
+        if status is not None:
+            break
+        time.sleep(1.0)
+    if status is None:
+        helper_proc.kill()
+
+
+def mysignal(helper_proc, signum, frame):
+    if signum == signal.SIGINT:
+        global sigint_count
+        sigint_count += 1
+        if sigint_count == 1:
+            print('driver: ^C seen, type it again to tear down', file=sys.stderr)
+        else:
+            print('driver: tearing down', file=sys.stderr)
+            tear_down_helper(helper_proc)
 
 
 def main():
@@ -107,6 +149,8 @@ def main():
 
     helper_proc = client.run_mpi_helper()
     time.sleep(1)  # give the mpi helper time to get going
+    mysignal_ = functools.partial(mysignal, helper_proc)
+    signal.signal(signal.SIGHUP, mysignal_)
 
     #paramsurvey.init(backend='ray')
     paramsurvey.init(backend='multiprocessing', ncores=4)
@@ -118,29 +162,38 @@ def main():
     ]
 
     # this is how ray backend args are specified
+    # XXX shouldn't paramsurvey hide this?
     for p in psets:
         if 'ncores' in p:
             p['ray'] = {'ncores': p.get('ncores')}
-            #p['ray'] = {'ncores': p.pop('ncores')}
 
     # example of how to return stdout from the cli process
-    #user_kwargs = {'run_kwargs': {
-    #    'stdout': subprocess.PIPE, 'encoding': 'utf-8',
-    #    'stderr': subprocess.PIPE, 'encoding': 'utf-8',
-    #}}
+    user_kwargs = {'run_kwargs': {
+        'stdout': subprocess.PIPE, 'encoding': 'utf-8',
+        'stderr': subprocess.PIPE, 'encoding': 'utf-8',
+    }}
     user_kwargs = {}
 
     results = paramsurvey.map(run_mpi_multinode, psets, user_kwargs=user_kwargs)
 
     status = client.check_mpi_helper(helper_proc)
     if status is not None:
-        print('driver: looked at mpi_helper and it had already existed with status', str(status))
-    helper_proc.kill()
+        print('driver: looked at mpi_helper and it had already exited with status', str(status), file=sys.stderr)
+    else:
+        print('driver: mpi_helper has not exited already, tearing it down', file=sys.stderr)
+        tear_down_helper(helper_proc)
+
+    assert results.progress.failures == 0
+
+    print('type results', type(results))
+
+    for r in results.iterdicts():
+        print(r['cli'])
 
     for r in results.itertuples():
-        # r.cli is a subprocess.CompletedProcess object
+        print('type r', type(r))
+        print('type r.cli', type(r.cli))
         #print(r.cli.returncode, r.cli.stdout.rstrip())
-        pass
 
 
 if __name__ == '__main__':

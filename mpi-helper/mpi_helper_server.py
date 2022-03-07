@@ -1,13 +1,16 @@
-from aiohttp import web
-import aiohttp_rpc
-
+import signal
 import time
 from collections import defaultdict
 import multiprocessing
 import os
+import sys
+
+from aiohttp import web
+import aiohttp_rpc
 
 import psutil
 
+exiting = False
 
 leaders = defaultdict(dict)
 followers = defaultdict(dict)
@@ -100,7 +103,7 @@ def schedule(lkey, l):
             jobnumber += 1
 
         l['state'] = 'scheduled'
-        if len(fkeys) == 0:  # job fits the leader
+        if len(l['fkeys']) == 0:  # job fits the leader
             print('leader-only, setting state to running')
             l['state'] = 'running'
         return True
@@ -121,10 +124,14 @@ def key(ip, pid):
 
 
 def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
+    if exiting:
+        print('mpi_helper_server: saw leader checkin after I was HUPped', file=sys.stderr)
+        return {'followers': None, 'state': 'exiting'}
+
     lkey = key(ip, pid)
     print('leader checkin {}, wanted: {}, lseq_new: {}'.format(lkey, wanted_cores, lseq_new))
-    # leader states: waiting -> scheduled -> running or nuked (all scheduled, or timeout)
-    
+    # leader states: waiting -> scheduled -> running -> exiting
+
     if lkey in followers:
         # well, this job might or might not have finished... so all we can do is:
         print('leader checkin used key of an existing follower')
@@ -133,6 +140,15 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
     l = leaders[lkey]
     l['t'] = time.time()
     state = l.get('state')
+
+    if remotestate == 'exiting':
+        # leader announcing an mpirun exit
+        if state == 'running':
+            for f in l['fkeys']:
+                if f in followers and followers[f]['state'] == 'running':
+                    followers[f]['state'] = 'exiting'
+            l['state'] = 'exiting'
+        return {'followers': None, 'state': 'exiting'}
 
     if l.get('lseq') != lseq_new:
         print('  leader sequence different, old: {}, new: {}, old-state: {}'.format(l.get('lseq'), lseq_new, state))
@@ -149,7 +165,7 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
             print('  new state is', state)
 
     try_to_schedule = False
-    if state == 'scheduled':
+    if state in {'scheduled', 'running'}:
         print('  leader is already scheduled')
         valid_fkeys = []
         for f in l['fkeys']:
@@ -173,14 +189,15 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
             try_to_schedule = True
             l['fkeys'] = valid_fkeys
         else:
-            # are we running?
-            if all([followers[f]['state'] == 'running' for f in valid_fkeys]):
+            if state == 'running':
+                pass
+            elif all([followers[f]['state'] == 'running' for f in valid_fkeys]):
                 print('GREG GREG GREG leader is running')
                 l['state'] = 'running'
     else:
         # if state is None, this is a new-to-us leader
         # if it's waiting, we overwrite with identical information
-        print('  overwriting leader state')
+        print('  overwriting leader state, which was', state)
         l['state'] = 'waiting'
         l['cores'] = cores
         l['wanted_cores'] = int(wanted_cores)
@@ -206,9 +223,13 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
 
 
 def follower_checkin(ip, cores, pid, remotestate, fseq_new):
+    if exiting:
+        print('mpi_helper_server: saw follower checkin after I was HUPped', file=sys.stderr)
+        return {'state': 'exiting'}
+
     k = key(ip, pid)
     print('follower checkin', k)
-    # follower states: available -> assigned -> running
+    # follower states: available -> assigned -> running -> exiting
 
     if k in leaders:
         # existing leader is now advertising it is a follower
@@ -225,6 +246,9 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
     f = followers[k]
     f['t'] = time.time()
     state = f.get('state')
+
+    if state == 'exiting':
+        return {'state': 'exiting'}
 
     if f.get('fseq') != fseq_new:
         print('  follower sequence different old: {} new: {}  old-state: {}'.format(f.get('fseq'), fseq_new, state))
@@ -263,7 +287,22 @@ def core_count():
             return multiprocessing.cpu_count()
 
 
+def mysignal(signum, frame):
+    if signum == signal.SIGHUP:
+        global exiting
+        exiting = True
+        if leaders or followers:
+            print('mpi helper server: exiting all work', file=sys.stderr)
+            print('mpi helper server: {} leaders and {} followers remain'.format(len(leaders), len(followers)), file=sys.stderr)
+        else:
+            exit(0)
+    else:
+        print('mpi helper server: surprised to receive signal', signum, file=sys.stderr)
+
+
 if __name__ == '__main__':
+    signal.signal(signal.SIGHUP, mysignal)
+
     aiohttp_rpc.rpc_server.add_methods([
         leader_checkin,
         follower_checkin,

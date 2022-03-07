@@ -3,8 +3,11 @@ import os
 import os.path
 import socket
 import subprocess
+import time
+import signal
 
 url = "http://localhost:8889/jsonrpc"
+timeout = (4, 1)  # connect, read
 
 
 def get_pubkey():
@@ -39,7 +42,7 @@ def leader_checkin(cores, wanted_cores, pubkey, state, lseq):
     }
 
     try:
-        response = requests.post(url, json=payload).json()
+        response = requests.post(url, json=payload, timeout=timeout).json()
         leader_exceptions.clear()
     except Exception as e:
         leader_exceptions.append(str(e))
@@ -63,7 +66,7 @@ def follower_checkin(cores, state, fseq):
     }
 
     try:
-        response = requests.post(url, json=payload).json()
+        response = requests.post(url, json=payload, timeout=timeout).json()
         follower_exceptions.clear()
     except Exception as e:
         follower_exceptions.append(str(e))
@@ -101,11 +104,26 @@ def run_mpi(cmd, **kwargs):
 def check_mpi(proc):
     try:
         outs, errs = proc.communicate(timeout=0.01)
+        print('outs', outs)
+        print('errs', errs)
     except subprocess.TimeoutExpired:
-        return proc.poll()
+        pass
+    return proc.poll()
 
 
 def finish_mpi(proc):
-    outs, errs = proc.communicate()
+    '''We might be called right after sending a SIGINT to the mpi proc'''
     returncode = proc.poll()
+    outs, errs = proc.communicate()
+
+    count = 0
+    while returncode is None:
+        time.sleep(1.0)
+        returncode = proc.poll()
+        outs, errs = proc.communicate()
+        count += 1
+        if count > 10:
+            proc.send_signal(signal.SIGKILL)
+            break
+
     return subprocess.CompletedProcess(args=None, returncode=returncode, stdout=outs, stderr=errs)
