@@ -140,7 +140,7 @@ def mysignal(helper_proc, signum, frame):
         if sigint_count == 1:
             print('driver: ^C seen, type it again to tear down', file=sys.stderr)
         else:
-            print('driver: tearing down', file=sys.stderr)
+            print('driver: tearing down for ^C', file=sys.stderr)
             tear_down_helper(helper_proc)
 
 
@@ -152,7 +152,7 @@ def main():
     helper_proc = client.run_mpi_helper()
     time.sleep(1)  # give the mpi helper time to get going
     mysignal_ = functools.partial(mysignal, helper_proc)
-    signal.signal(signal.SIGHUP, mysignal_)
+    signal.signal(signal.SIGINT, mysignal_)
 
     #paramsurvey.init(backend='ray')
     paramsurvey.init(backend='multiprocessing', ncores=4)
