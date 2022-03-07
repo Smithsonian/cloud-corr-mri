@@ -51,6 +51,20 @@ def cache_timeout():
         # we expect running leaders to never check in
         del leaders[k]
 
+def cache_clean_exiting():
+    nuke = set()
+    for l, v in leaders.items():
+        if v['state'] == 'exiting':
+            nuke.add(l)
+    for l in nuke:
+        del leaders[l]
+    nuke = set()
+    for f, v in followers.items():
+        if v['state'] == 'exiting':
+            nuke.add(f)
+    for f in nuke:
+        del followers[f]
+
 
 def find_followers(wanted_cores):
     print('  schedule: find followers, want {} cores'.format(wanted_cores))
@@ -292,10 +306,12 @@ def mysignal(signum, frame):
         global exiting
         exiting = True
         if leaders or followers:
-            print('mpi helper server: exiting all work', file=sys.stderr)
-            print('mpi helper server: {} leaders and {} followers remain'.format(len(leaders), len(followers)), file=sys.stderr)
-        else:
-            exit(0)
+            cache_clean_exiting()
+            if leaders or followers:
+                print('mpi helper server: exiting all work', file=sys.stderr)
+                print('mpi helper server: {} leaders and {} followers remain'.format(len(leaders), len(followers)), file=sys.stderr)
+                return
+        exit(0)
     else:
         print('mpi helper server: surprised to receive signal', signum, file=sys.stderr)
 
