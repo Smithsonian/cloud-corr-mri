@@ -106,7 +106,9 @@ def follower(pset, system_kwargs, user_kwargs):
             client.deploy_pubkey(ret['pubkey'])
         elif ret['state'] == 'exiting':
             print('driver: follower told to exit')
-            return
+            # for pandas type reasons, if cli is an object for the leader, it has to be an object for the follower
+            # elsewise pandas will make the column a float
+            return {'cli': 'hi pandas'}
 
         state = ret['state']
         time.sleep(1.0)
@@ -172,7 +174,6 @@ def main():
         'stdout': subprocess.PIPE, 'encoding': 'utf-8',
         'stderr': subprocess.PIPE, 'encoding': 'utf-8',
     }}
-    user_kwargs = {}
 
     results = paramsurvey.map(run_mpi_multinode, psets, user_kwargs=user_kwargs)
 
@@ -185,15 +186,12 @@ def main():
 
     assert results.progress.failures == 0
 
-    print('type results', type(results))
-
     for r in results.iterdicts():
         print(r['cli'])
 
     for r in results.itertuples():
-        print('type r', type(r))
-        print('type r.cli', type(r.cli))
-        #print(r.cli.returncode, r.cli.stdout.rstrip())
+        if not isinstance(r.cli, str):
+            print(r.cli.returncode, r.cli.stdout.rstrip())
 
 
 if __name__ == '__main__':
