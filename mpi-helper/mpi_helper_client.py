@@ -121,7 +121,7 @@ def leader(pset, system_kwargs, user_kwargs):
                 state = 'running'
         elif ret['state'] == 'waiting' and mpi_proc is not None:
             # oh oh! mpi-helper thinks something bad happened. perhaps one of my followers timed out?
-            # XXX did the mpi helper server send all my followers to exiting?
+            # XXX did the mpi helper server send all my followers to state=exiting?
             mpi_proc.send_signal(signal.SIGINT)
             completed = finish_mpi(mpi_proc)
             status = check_mpi(mpi_proc)
@@ -208,14 +208,18 @@ def mysignal(helper_server_proc, signum, frame):
 
 
 def start_mpi_helper_server():
-    # We can't really use capture_output/stdin/stdout here because we have no way to repeatedly call .communicate()
-    # XXX add a timer() routine to paramsurvey.map()?
+    # We can't really use capture_output/stdin/stdout for the server because we have no way to repeatedly call .communicate()
 
     global helper_server_proc
     helper_server_proc = subprocess.Popen(['python', './mpi_helper_server.py'])
-    time.sleep(1)  # give the mpi helper time to get going
 
-    # XXX check to see if the helper_server_proc exited quickly, i.e. port busy
+    time.sleep(1)  # give the mpi helper time to get going... might crash with port in use
+
+    status = check_mpi_helper_server(helper_server_proc)
+    if status is not None:
+        print('driver: mpi helper server exited immediately with status', status, file=sys.stderr)
+        raise ValueError('cannot continue without mpi_helper_server')
+
     # XXX add more checks, perahps in a paramsurvey.map() timer function?
 
     mysignal_ = functools.partial(mysignal, helper_server_proc)
