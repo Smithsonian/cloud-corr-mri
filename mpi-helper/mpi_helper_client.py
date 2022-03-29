@@ -82,7 +82,7 @@ def leader_start_mpi(pset, ret, wanted, user_kwargs):
     # get hostnames out of the fkeys
 
     cmd = pset['run_args'].format(int(wanted)).split()
-    print('leader about to run', cmd)
+    print('leader {} about to run'.format(os.getpid()), cmd)
     run_kwargs = pset.get('run_kwargs') or user_kwargs.get('run_kwargs') or {}
     mpi_proc = run_mpi(cmd, **run_kwargs)
     print('leader just ran MPI and mpi_proc is', mpi_proc)
@@ -101,15 +101,19 @@ def leader(pset, system_kwargs, user_kwargs):
 
     print('I am leader before loop')
     while True:
-        print('I am leader top of loop')
+        print('I am leader {} top of loop'.format(os.getpid()))
         sys.stdout.flush()
         ret = leader_checkin(ncores, wanted, pubkey, state, lseq)
-        print('driver: leader checkin returned', ret)
-        ret = ret['result']
+        print('driver: leader {} checkin returned'.format(os.getpid()), ret)
+        sys.stdout.flush()
+        ret = ret['result']  # XXX this might not be there
         if ret is None:
+            time.sleep(0.1)
             continue
         if ret['state'] == 'exiting':
-            print('driver leader: received exiting status')
+            print('driver: leader {}: received surprising exiting status'.format(os.getpid()))
+            # XXX should nuke the mpirun similar to below
+            sys.stdout.flush()
             return
 
         if ret['state'] == 'running':
@@ -117,7 +121,7 @@ def leader(pset, system_kwargs, user_kwargs):
                 assert mpi_proc is not None
             else:
                 mpi_proc = leader_start_mpi(pset, ret, wanted, user_kwargs)
-                print('driver: leader just started mpi proc and poll returns', check_mpi(mpi_proc))
+                print('driver: leader {} just started mpi proc and poll returns'.format(os.getpid()), check_mpi(mpi_proc))
                 state = 'running'
         elif ret['state'] == 'waiting' and mpi_proc is not None:
             # oh oh! mpi-helper thinks something bad happened. perhaps one of my followers timed out?
@@ -125,21 +129,23 @@ def leader(pset, system_kwargs, user_kwargs):
             mpi_proc.send_signal(signal.SIGINT)
             completed = finish_mpi(mpi_proc)
             status = check_mpi(mpi_proc)
+            print('driver: leader {} bailing out on state==waiting post mpi_proc'.format(os.getpid()))
             return {'cli': completed}
 
         if mpi_proc:
             status = check_mpi(mpi_proc)
-            print('driver: leader checking mpirun: ', status)
+            print('driver: leader {} checking mpirun: '.format(os.getpid()), status)
             os.system('ps')
             if status is not None:
-                print('driver: leader observes normal exit')
+                print('driver: leader {} observes normal exit'.format(os.getpid()))
                 state = 'exiting'
                 completed = finish_mpi(mpi_proc)  # should complete immediately
                 for _ in range(100):
                     ret = leader_checkin(ncores, wanted, pubkey, state, lseq)
-                    print('driver: leader checkin returned', ret)
+                    print('driver: leader {} checkin post-normal exit returned'.format(os.getpid()), ret)
                     if ret['result'] and ret['result']['state'] == 'exiting':
                         break
+                    time.sleep(0.1)
                 return {'cli': completed}
 
         time.sleep(0.1)
@@ -154,10 +160,13 @@ def follower(pset, system_kwargs, user_kwargs):
 
     while True:
         print('driver: follower checkin with state', state)
+        sys.stdout.flush()
         ret = follower_checkin(ncores, state, fseq)
         print('driver: follower checkin returned', ret)
+        sys.stdout.flush()
         ret = ret['result']
         if ret is None:
+            time.sleep(1.0)
             continue
 
         if ret['state'] == 'assigned' and state != 'assigned':
@@ -203,6 +212,7 @@ def mysignal(helper_server_proc, signum, frame):
         elif sigint_count == 2:
             print('driver: tearing down for ^C', file=sys.stderr)
             tear_down_mpi_helper_server(helper_server_proc)
+            sys.exit(1)
         else:
             print('driver: additional sigint ignored', file=sys.stderr)
 
@@ -220,7 +230,7 @@ def start_mpi_helper_server():
         print('driver: mpi helper server exited immediately with status', status, file=sys.stderr)
         raise ValueError('cannot continue without mpi_helper_server')
 
-    # XXX add more checks, perahps in a paramsurvey.map() timer function?
+    # XXX add more checks, perhaps in a paramsurvey.map() timer function?
 
     mysignal_ = functools.partial(mysignal, helper_server_proc)
     signal.signal(signal.SIGINT, mysignal_)

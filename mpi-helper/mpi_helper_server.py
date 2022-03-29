@@ -110,7 +110,7 @@ def schedule(lkey, l):
         if is_reschedule:
             l['fkeys'].extend(fkeys)
             for f in fkeys:
-                f['jobnumber'] = l['jobnumber']
+                followers[f]['jobnumber'] = l['jobnumber']
         else:
             l['jobnumber'] = jobnumber
             l['fkeys'] = fkeys
@@ -242,7 +242,7 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
         return {'state': 'exiting'}
 
     k = key(ip, pid)
-    print('follower checkin', k)
+    print('follower checkin', k, 'with remotestate', remotestate)
     # follower states: available -> assigned -> running -> exiting
 
     if k in leaders:
@@ -253,8 +253,13 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
             if f in followers:
                 # XXX need a leadersequence (jobseqeunce?) here
                 # don't leave any of the fkeys in the assigned state
-                print('  ... nuking follower', f)
-                del followers[f]
+                #print('  ... nuking follower', f)
+                #del followers[f]
+                print('GREG here we are and follower state is', followers[f]['state'])
+                # XXX hmph followers are already exiting.
+                if followers[f]['state'] == 'assigned':
+                    print('GREG this happened')
+                    followers[f]['state'] = 'exiting'
         del leaders[k]
 
     f = followers[k]
@@ -275,12 +280,20 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
 
     f['fseq'] = fseq_new
 
+    if remotestate == 'assigned':
+        print('  GREG remotestate assigned, state is', state)
+        # XXX if state is available, what should I do?
+        if state == 'running':
+            # all is well
+            return {'state': 'assigned'}
+
     if state == 'assigned' and remotestate == 'available':
         f['state'] = 'running'
         print('  returning a schedule to the follower')
-        return {'leader': f['leader'], 'pubkey': f['pubkey'], 'state': 'assigned'}
+        return {'leader': f['leader'], 'pubkey': f['pubkey'], 'state': 'assigned'}  # XXX how does the follower get to 'running'?
 
-    if f.get('state') == 'running':
+    #if f.get('state') == 'running':
+    if state == 'running':
         print('  destroying follower schedule')
         del f['leader']
         del f['pubkey']

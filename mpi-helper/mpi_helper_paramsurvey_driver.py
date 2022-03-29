@@ -18,13 +18,15 @@ def main():
     client.start_mpi_helper_server()
 
     #paramsurvey.init(backend='ray')
-    paramsurvey.init(backend='multiprocessing', ncores=4)
+    paramsurvey.init(backend='multiprocessing', ncores=7)
 
     psets = [
         {'kind': 'leader', 'ncores': 1, 'run_args': 'mpirun -np {} ./a.out', 'wanted': 3},
         {'kind': 'follower', 'ncores': 1},
         {'kind': 'follower', 'ncores': 1},
     ]
+
+    psets = psets * 3
 
     # this is how ray backend args are specified
     # XXX shouldn't paramsurvey hide this?
@@ -37,20 +39,23 @@ def main():
         'stdout': subprocess.PIPE, 'encoding': 'utf-8',
         'stderr': subprocess.PIPE, 'encoding': 'utf-8',
     }}
+    user_kwargs = {}
 
     results = paramsurvey.map(client.mpi_multinode_worker, psets, user_kwargs=user_kwargs)
 
     client.end_mpi_helper_server()
 
-    assert results.progress.failures == 0
+    #assert results.progress.failures == 0
+    print('driver: after map, failures is', results.progress.failures)
 
     for r in results.iterdicts():
-        print(r['cli'])
+        print('result:', r['cli'])
 
     for r in results.itertuples():
         if not isinstance(r.cli, str):
-            print(r.cli.returncode, r.cli.stdout.rstrip())
+            print('result:', r.cli.returncode)  # needs stdout capture: , r.cli.stdout.rstrip())
 
 
 if __name__ == '__main__':
     main()
+    print('exiting')
