@@ -78,8 +78,7 @@ def follower_checkin(cores, state, fseq):
 
 def leader_start_mpi(pset, ret, wanted, user_kwargs):
     # XXX generate special difx hostfile
-    # ret['followers'] is a list of fkeys and cores
-    # get hostnames out of the fkeys
+    # ret['followers'] is a list of fkeys and core counts
 
     cmd = pset['run_args'].format(int(wanted)).split()
     print('leader {} about to run'.format(os.getpid()), cmd)
@@ -106,15 +105,19 @@ def leader(pset, system_kwargs, user_kwargs):
         ret = leader_checkin(ncores, wanted, pubkey, state, lseq)
         print('driver: leader {} checkin returned'.format(os.getpid()), ret)
         sys.stdout.flush()
-        ret = ret['result']  # XXX this might not be there
+        ret = ret.get('result')
         if ret is None:
+            # either server sent None or there was a network error
             time.sleep(0.1)
             continue
         if ret['state'] == 'exiting':
+            # XXX consolidate with the duplicate code below
+            mpi_proc.send_signal(signal.SIGINT)
+            completed = finish_mpi(mpi_proc)
+            status = check_mpi(mpi_proc)
             print('driver: leader {}: received surprising exiting status'.format(os.getpid()))
-            # XXX should nuke the mpirun similar to below
             sys.stdout.flush()
-            return
+            return {'cli': completed}
 
         if ret['state'] == 'running':
             if state == 'running':
@@ -130,6 +133,7 @@ def leader(pset, system_kwargs, user_kwargs):
             completed = finish_mpi(mpi_proc)
             status = check_mpi(mpi_proc)
             print('driver: leader {} bailing out on state==waiting post mpi_proc'.format(os.getpid()))
+            sys.stdout.flush()
             return {'cli': completed}
 
         if mpi_proc:
@@ -149,7 +153,7 @@ def leader(pset, system_kwargs, user_kwargs):
                 return {'cli': completed}
 
         time.sleep(0.1)
-    return
+    raise ValueError('notreached')
 
 
 def follower(pset, system_kwargs, user_kwargs):
@@ -192,17 +196,6 @@ def mpi_multinode_worker(pset, system_kwargs, user_kwargs):
         return follower(pset, system_kwargs, user_kwargs)
 
 
-def tear_down_mpi_helper_server(helper_server_proc):
-    helper_server_proc.send_signal(signal.SIGHUP)
-    for _ in range(10):
-        status = check_mpi_helper_server(helper_server_proc)
-        if status is not None:
-            break
-        time.sleep(1.0)
-    if status is None:
-        helper_server_proc.kill()
-
-
 def mysignal(helper_server_proc, signum, frame):
     if signum == signal.SIGINT:
         global sigint_count
@@ -211,6 +204,7 @@ def mysignal(helper_server_proc, signum, frame):
             print('driver: ^C seen, type it again to tear down', file=sys.stderr)
         elif sigint_count == 2:
             print('driver: tearing down for ^C', file=sys.stderr)
+            # XXX this doesn't tear down ray workers
             tear_down_mpi_helper_server(helper_server_proc)
             sys.exit(1)
         else:
@@ -218,7 +212,7 @@ def mysignal(helper_server_proc, signum, frame):
 
 
 def start_mpi_helper_server():
-    # We can't really use capture_output/stdin/stdout for the server because we have no way to repeatedly call .communicate()
+    # We can't really use capture_output/stdin/stdout for the server because we have no good way to repeatedly call .communicate()
 
     global helper_server_proc
     helper_server_proc = subprocess.Popen(['python', './mpi_helper_server.py'])
@@ -234,6 +228,17 @@ def start_mpi_helper_server():
 
     mysignal_ = functools.partial(mysignal, helper_server_proc)
     signal.signal(signal.SIGINT, mysignal_)
+
+
+def tear_down_mpi_helper_server(helper_server_proc):
+    helper_server_proc.send_signal(signal.SIGHUP)
+    for _ in range(10):
+        status = check_mpi_helper_server(helper_server_proc)
+        if status is not None:
+            break
+        time.sleep(1.0)
+    if status is None:
+        helper_server_proc.kill()
 
 
 def end_mpi_helper_server():    
@@ -266,27 +271,15 @@ def run_mpi(cmd, **kwargs):
 
 def check_mpi(proc):
     try:
+        # we have to call this enough to not block if pipes are used and fill up
         outs, errs = proc.communicate(timeout=0.01)
-        print('outs', outs)
-        print('errs', errs)
     except subprocess.TimeoutExpired:
         pass
     return proc.poll()
 
 
 def finish_mpi(proc):
-    '''We might be called right after sending a SIGINT to the mpi proc'''
+    '''We might be called right after sending a SIGINT to the mpi proc, or after it is seen to exit'''
     returncode = proc.poll()
-    outs, errs = proc.communicate()
-
-    count = 0
-    while returncode is None:
-        time.sleep(1.0)
-        returncode = proc.poll()
-        outs, errs = proc.communicate()
-        count += 1
-        if count > 10:
-            proc.send_signal(signal.SIGKILL)
-            break
-
+    outs, errs = proc.communicate()  # no timeout, will sleep until exit
     return subprocess.CompletedProcess(args=None, returncode=returncode, stdout=outs, stderr=errs)
