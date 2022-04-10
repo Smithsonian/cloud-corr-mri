@@ -76,6 +76,22 @@ def follower_checkin(cores, state, fseq):
     return response
 
 
+def hello_world():
+    payload = {
+        'method': 'hello_world',
+        'params': [],
+        'jsonrpc': '2.0',
+        'id': 0,
+    }
+    try:
+        response = requests.post(url, json=payload, timeout=timeout).json()
+        print(response, file=sys.stderr)
+        assert response['result']['hello'] == 'world!'
+    except Exception as e:
+        return 'hello_world fail: '+str(e)
+    return 'pass'
+
+
 def leader_start_mpi(pset, ret, wanted, user_kwargs):
     # XXX generate special difx hostfile
     # ret['followers'] is a list of fkeys and core counts
@@ -152,7 +168,9 @@ def leader(pset, system_kwargs, user_kwargs):
                     time.sleep(0.1)
                 return {'cli': completed}
 
-        time.sleep(0.1)
+        if not mpi_proc:
+            time.sleep(0.1)
+
     raise ValueError('notreached')
 
 
@@ -217,12 +235,20 @@ def start_mpi_helper_server():
     global helper_server_proc
     helper_server_proc = subprocess.Popen(['python', './mpi_helper_server.py'])
 
-    time.sleep(1)  # give the mpi helper time to get going... might crash with port in use
-
-    status = check_mpi_helper_server(helper_server_proc)
+    status = check_mpi_helper_server(helper_server_proc, timeout=1.0)
     if status is not None:
         print('driver: mpi helper server exited immediately with status', status, file=sys.stderr)
+        # at the moment this server doesn't use pipes so out,err are None
+        outs, errs = helper_server_proc.communicate()
+        if outs:
+            print('driver: mpi helper stdout is', outs, file=sys.stderr)
+        if errs:
+            print('driver: mpi helper stderr is', errs, file=sys.stderr)
         raise ValueError('cannot continue without mpi_helper_server')
+
+    hw = hello_world()
+    if hw != 'pass':
+        raise ValueError('hello world test of mpi_helper server returned: '+hw)
 
     # XXX add more checks, perhaps in a paramsurvey.map() timer function?
 
@@ -250,13 +276,11 @@ def end_mpi_helper_server():
         tear_down_mpi_helper_server(helper_server_proc)
 
 
-def check_mpi_helper_server(helper_server_proc):
-    # proc.communicate(timeout=1)
-    # TimeoutExpired: -- continue
-    # outs, errs = proc.communicate() *if* user specified kwargs, else None, None
-    # finally the status is in .poll()
-    # to imitate subprocess.run return a subprocess.CompletedProcess object
-    # (args, returncode, stdout, stderr, check_returncode)
+def check_mpi_helper_server(helper_server_proc, timeout=1.0):
+    try:
+        outs, errs = helper_server_proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        pass
     return helper_server_proc.poll()
 
 
@@ -269,17 +293,17 @@ def run_mpi(cmd, **kwargs):
     return subprocess.Popen(cmd, **kwargs)
 
 
-def check_mpi(proc):
+def check_mpi(proc, timeout=0.1):
     try:
         # we have to call this enough to not block if pipes are used and fill up
-        outs, errs = proc.communicate(timeout=0.01)
+        outs, errs = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         pass
     return proc.poll()
 
 
 def finish_mpi(proc):
-    '''We might be called right after sending a SIGINT to the mpi proc, or after it is seen to exit'''
-    returncode = proc.poll()
+    # called either after sending sigint or a previous poll saw it exit
     outs, errs = proc.communicate()  # no timeout, will sleep until exit
+    returncode = proc.poll()
     return subprocess.CompletedProcess(args=None, returncode=returncode, stdout=outs, stderr=errs)

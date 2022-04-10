@@ -301,6 +301,10 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
     f['cores'] = cores
 
 
+def hello_world():
+    return {'hello': 'world!'}
+
+
 def core_count():
     try:
         # recent Linux
@@ -335,6 +339,7 @@ if __name__ == '__main__':
     aiohttp_rpc.rpc_server.add_methods([
         leader_checkin,
         follower_checkin,
+        hello_world,
     ])
 
     app = web.Application()
