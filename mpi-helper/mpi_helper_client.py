@@ -229,8 +229,10 @@ def mysignal(helper_server_proc, signum, frame):
             print('driver: additional sigint ignored', file=sys.stderr)
 
 
-def start_mpi_helper_server(hostport='localhost:8889'):
+def start_mpi_helper_server(hostport=':8889'):
     host, port = hostport.split(':', maxsplit=1)
+    if not host:
+        host = socket.gethostname()
     global url
     url = 'http://{}:{}/jsonrpc'.format(host, port)
 
