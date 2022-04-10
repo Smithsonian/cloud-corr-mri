@@ -20,7 +20,7 @@ jobnumber = 0  # used to disambiguate states
 
 
 def clear():
-    print('clear')
+    #print('clear')
     global leaders
     global followers
     leaders = defaultdict(dict)
@@ -34,7 +34,8 @@ def cache_timeout():
         if v['t'] < now - cache_lifetime:
             kills.append(k)
     if kills:
-        print('cache: timing out {} followers entries'.format(len(kills)))
+        #print('cache: timing out {} followers entries'.format(len(kills)))
+        pass
     for k in kills:
         # XXX if follower was 'assigned', not 'running' or 'available', set up for a reschedule
         # we expect running followers to never check in again
@@ -45,7 +46,8 @@ def cache_timeout():
         if v['t'] < now - cache_lifetime:
             kills.append(k)
     if kills:
-        print('cache: timing out {} leaders entries'.format(len(kills)))
+        #print('cache: timing out {} leaders entries'.format(len(kills)))
+        pass
     for k in kills:
         # XXX maybe do something if waiting, scheduled, but not running?
         # we expect running leaders to never check in
@@ -67,7 +69,7 @@ def cache_clean_exiting():
 
 
 def find_followers(wanted_cores):
-    print('  schedule: find followers, want {} cores'.format(wanted_cores))
+    #print('  schedule: find followers, want {} cores'.format(wanted_cores))
     fkeys = []
     for k, v in followers.items():
         if v['state'] == 'available':
@@ -76,21 +78,21 @@ def find_followers(wanted_cores):
             if wanted_cores <= 0:
                 break
     if wanted_cores <= 0:
-        print('  ff: did find enough cores:', ','.join(fkeys))
+        #print('  ff: did find enough cores:', ','.join(fkeys))
         return fkeys
-    print('  ff: did not find enough cores')
+    #print('  ff: did not find enough cores')
 
 
 def schedule(lkey, l):
     global jobnumber
     cache_timeout()
     wanted_cores = l['wanted_cores'] - l['cores']
-    print('  schedule: wanted {} cores in addition to leader cores {}'.format(wanted_cores, l['cores']))
+    #print('  schedule: wanted {} cores in addition to leader cores {}'.format(wanted_cores, l['cores']))
     is_reschedule = False
     if l.get('fkeys'):
         is_reschedule = True
         wanted_cores -= sum(followers[f]['cores'] for f in l['fkeys'])
-        print('  reschedule, after existing follower cores we still want', wanted_cores)
+        #print('  reschedule, after existing follower cores we still want', wanted_cores)
 
     if wanted_cores > 0:
         fkeys = find_followers(wanted_cores)
@@ -99,9 +101,11 @@ def schedule(lkey, l):
 
     if wanted_cores <= 0 or fkeys is not None:
         if is_reschedule:
-            print('  re-scheduled jobnumber', jobnumber)
+            #print('  re-scheduled jobnumber', jobnumber)
+            pass
         else:
-            print('  scheduled jobnumber', jobnumber)
+            #print('  scheduled jobnumber', jobnumber)
+            pass
         for f in fkeys:
             followers[f]['state'] = 'assigned'
             followers[f]['leader'] = lkey
@@ -118,10 +122,10 @@ def schedule(lkey, l):
 
         l['state'] = 'scheduled'
         if len(l['fkeys']) == 0:  # job fits the leader
-            print('leader-only, setting state to running')
+            #print('leader-only, setting state to running')
             l['state'] = 'running'
         return True
-    print('  failed to schedule')
+    #print('  failed to schedule')
 
 
 def make_leader_return(l):
@@ -139,16 +143,16 @@ def key(ip, pid):
 
 def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
     if exiting:
-        print('mpi_helper_server: saw leader checkin after I was HUPped', file=sys.stderr)
+        #print('mpi_helper_server: saw leader checkin after I was HUPped', file=sys.stderr)
         return {'followers': None, 'state': 'exiting'}
 
     lkey = key(ip, pid)
-    print('leader checkin {}, wanted: {}, lseq_new: {}'.format(lkey, wanted_cores, lseq_new))
+    #print('leader checkin {}, wanted: {}, lseq_new: {}'.format(lkey, wanted_cores, lseq_new))
     # leader states: waiting -> scheduled -> running -> exiting
 
     if lkey in followers:
         # well, this job might or might not have finished... so all we can do is:
-        print('leader checkin used key of an existing follower')
+        #print('leader checkin used key of an existing follower')
         del followers[lkey]
 
     l = leaders[lkey]
@@ -165,10 +169,10 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
         return {'followers': None, 'state': 'exiting'}
 
     if l.get('lseq') != lseq_new:
-        print('  leader sequence different, old: {}, new: {}, old-state: {}'.format(l.get('lseq'), lseq_new, state))
+        #print('  leader sequence different, old: {}, new: {}, old-state: {}'.format(l.get('lseq'), lseq_new, state))
         # this leader is not the same one as in the table...
         if state == 'scheduled' or state == 'running':
-            print('  changing state from {} to None'.format(state))
+            #print('  changing state from {} to None'.format(state))
             state = None
             # this job must have finished, one way or another
             # just throw this info away, followers will check back in for new work anyway
@@ -176,42 +180,43 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
                 del l['fkeys']
         elif 'lseq' in l:
             # don't print this if the leader is brand new
-            print('  new state is', state)
+            #print('  new state is', state)
+            pass
 
     try_to_schedule = False
     if state in {'scheduled', 'running'}:
-        print('  leader is already scheduled')
+        #print('  leader is already scheduled')
         valid_fkeys = []
         for f in l['fkeys']:
             if f not in followers:
-                print('      not in followers')
+                #print('      not in followers')
                 pass
             elif followers[f]['state'] not in {'assigned', 'running'}:  # XXX test 'running'
                 # for example, follower timed out and then checked in
-                print('      not assigned or running, but ', followers[f]['state'])
+                #print('      not assigned or running, but ', followers[f]['state'])
                 pass
             elif followers[f]['jobnumber'] != l['jobnumber']:
                 # for example, follower timed out, checked in, was assigned to some other job
-                print('      wrong jobnumber')
+                #print('      wrong jobnumber')
                 pass
             else:
                 valid_fkeys.append(f)
         if len(valid_fkeys) != len(l['fkeys']):
-            print('  not all followers still exist, so triggering a new schedule')
-            print('    old valid fkeys:', l['fkeys'])
-            print('    new valid fkeys:', valid_fkeys)
+            #print('  not all followers still exist, so triggering a new schedule')
+            #print('    old valid fkeys:', l['fkeys'])
+            #print('    new valid fkeys:', valid_fkeys)
             try_to_schedule = True
             l['fkeys'] = valid_fkeys
         else:
             if state == 'running':
                 pass
             elif all([followers[f]['state'] == 'running' for f in valid_fkeys]):
-                print('GREG GREG GREG leader is running')
+                #print('GREG GREG GREG leader is running')
                 l['state'] = 'running'
     else:
         # if state is None, this is a new-to-us leader
         # if it's waiting, we overwrite with identical information
-        print('  overwriting leader state, which was', state)
+        #print('  overwriting leader state, which was', state)
         l['state'] = 'waiting'
         l['cores'] = cores
         l['wanted_cores'] = int(wanted_cores)
@@ -221,44 +226,46 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
         try_to_schedule = True
 
     if try_to_schedule:
-        print('  before schedule:', l)
+        #print('  before schedule:', l)
         schedule(lkey, l)
-        print('  after schedule:', l)
+        #print('  after schedule:', l)
     else:
-        print('  have an existing schedule with {} followers'.format(len(l['fkeys'])))
+        #print('  have an existing schedule with {} followers'.format(len(l['fkeys'])))
+        pass
 
     # return schedule or watever
 
     if l['state'] in {'scheduled', 'running'}:
-        print('  returning a schedule with {} followers'.format(len(l['fkeys'])))
+        #print('  returning a schedule with {} followers'.format(len(l['fkeys'])))
         return make_leader_return(l)
     else:
-        print('  did not schedule')
+        #print('  did not schedule')
+        pass
 
 
 def follower_checkin(ip, cores, pid, remotestate, fseq_new):
     if exiting:
-        print('mpi_helper_server: saw follower checkin after I was HUPped', file=sys.stderr)
+        #print('mpi_helper_server: saw follower checkin after I was HUPped', file=sys.stderr)
         return {'state': 'exiting'}
 
     k = key(ip, pid)
-    print('follower checkin', k, 'with remotestate', remotestate)
+    #print('follower checkin', k, 'with remotestate', remotestate)
     # follower states: available -> assigned -> running -> exiting
 
     if k in leaders:
         # existing leader is now advertising it is a follower
-        print('  existing leader {} is now advertising it is a follower'.format(k))
+        #print('  existing leader {} is now advertising it is a follower'.format(k))
         fkeys = leaders[k].get('fkeys', [])
         for f in fkeys:
             if f in followers:
                 # XXX need a leadersequence (jobseqeunce?) here
                 # don't leave any of the fkeys in the assigned state
-                #print('  ... nuking follower', f)
+                ##print('  ... nuking follower', f)
                 #del followers[f]
-                print('GREG here we are and follower state is', followers[f]['state'])
+                #print('GREG here we are and follower state is', followers[f]['state'])
                 # XXX hmph followers are already exiting.
                 if followers[f]['state'] == 'assigned':
-                    print('GREG this happened')
+                    #print('GREG this happened')
                     followers[f]['state'] = 'exiting'
         del leaders[k]
 
@@ -270,18 +277,18 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
         return {'state': 'exiting'}
 
     if f.get('fseq') != fseq_new:
-        print('  follower sequence different old: {} new: {}  old-state: {}'.format(f.get('fseq'), fseq_new, state))
+        #print('  follower sequence different old: {} new: {}  old-state: {}'.format(f.get('fseq'), fseq_new, state))
         if state == 'assigned':
-            print('  setting state to None')
+            #print('  setting state to None')
             state = None
         elif 'fseq' in f:  # don't print this if the follower is brand new
-            print('  keeping state', state)
+            #print('  keeping state', state)
             pass
 
     f['fseq'] = fseq_new
 
     if remotestate == 'assigned':
-        print('  GREG remotestate assigned, state is', state)
+        #print('  GREG remotestate assigned, state is', state)
         # XXX if state is available, what should I do?
         if state == 'running':
             # all is well
@@ -289,12 +296,12 @@ def follower_checkin(ip, cores, pid, remotestate, fseq_new):
 
     if state == 'assigned' and remotestate == 'available':
         f['state'] = 'running'
-        print('  returning a schedule to the follower')
+        #print('  returning a schedule to the follower')
         return {'leader': f['leader'], 'pubkey': f['pubkey'], 'state': 'assigned'}  # XXX how does the follower get to 'running'?
 
     #if f.get('state') == 'running':
     if state == 'running':
-        print('  destroying follower schedule')
+        #print('  destroying follower schedule')
         del f['leader']
         del f['pubkey']
     f['state'] = 'available'
@@ -325,12 +332,13 @@ def mysignal(signum, frame):
         if leaders or followers:
             cache_clean_exiting()
             if leaders or followers:
-                print('mpi helper server: exiting all work', file=sys.stderr)
-                print('mpi helper server: {} leaders and {} followers remain'.format(len(leaders), len(followers)), file=sys.stderr)
+                #print('mpi helper server: exiting all work', file=sys.stderr)
+                #print('mpi helper server: {} leaders and {} followers remain'.format(len(leaders), len(followers)), file=sys.stderr)
                 return
         exit(0)
     else:
-        print('mpi helper server: surprised to receive signal', signum, file=sys.stderr)
+        #print('mpi helper server: surprised to receive signal', signum, file=sys.stderr)
+        pass
 
 
 if __name__ == '__main__':
@@ -346,5 +354,7 @@ if __name__ == '__main__':
     app.router.add_routes([
         web.post('/jsonrpc', aiohttp_rpc.rpc_server.handle_http_request),
     ])
-    #web.run_app(app, host='0.0.0.0', port=8889)
-    web.run_app(app, host='localhost', port=8889)
+
+    host, port = sys.argv[1:3]
+
+    web.run_app(app, host=host, port=port)

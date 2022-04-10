@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--resources', action='store', default='')
     args = parser.parse_args()
 
-    client.start_mpi_helper_server()
+    client.start_mpi_helper_server(hostport='localhost:8889')
 
     #paramsurvey.init(backend='ray')
     paramsurvey.init(backend='multiprocessing', ncores=7)
