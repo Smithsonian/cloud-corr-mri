@@ -76,21 +76,36 @@ def follower_checkin(cores, state, fseq):
     return response
 
 
+def hello_world():
+    payload = {
+        'method': 'hello_world',
+        'params': [],
+        'jsonrpc': '2.0',
+        'id': 0,
+    }
+    try:
+        response = requests.post(url, json=payload, timeout=timeout).json()
+        #print(response, file=sys.stderr)
+        assert response['result']['hello'] == 'world!'
+    except Exception as e:
+        return 'hello_world fail: '+str(e)
+    return 'pass'
+
+
 def leader_start_mpi(pset, ret, wanted, user_kwargs):
     # XXX generate special difx hostfile
-    # ret['followers'] is a list of fkeys and cores
-    # get hostnames out of the fkeys
+    # ret['followers'] is a list of fkeys and core counts
 
     cmd = pset['run_args'].format(int(wanted)).split()
-    print('leader {} about to run'.format(os.getpid()), cmd)
+    #print('leader {} about to run'.format(os.getpid()), cmd)
     run_kwargs = pset.get('run_kwargs') or user_kwargs.get('run_kwargs') or {}
     mpi_proc = run_mpi(cmd, **run_kwargs)
-    print('leader just ran MPI and mpi_proc is', mpi_proc)
+    #print('leader just ran MPI and mpi_proc is', mpi_proc)
     return mpi_proc
 
 
 def leader(pset, system_kwargs, user_kwargs):
-    print('I am leader and my pid is {}'.format(os.getpid()))
+    #print('I am leader and my pid is {}'.format(os.getpid()))
     pubkey = get_pubkey()
     mpi_proc = None
     ncores = pset['ncores']
@@ -99,29 +114,33 @@ def leader(pset, system_kwargs, user_kwargs):
     state = 'waiting'
     wanted = pset['wanted']
 
-    print('I am leader before loop')
+    #print('I am leader before loop')
     while True:
-        print('I am leader {} top of loop'.format(os.getpid()))
+        #print('I am leader {} top of loop'.format(os.getpid()))
         sys.stdout.flush()
         ret = leader_checkin(ncores, wanted, pubkey, state, lseq)
-        print('driver: leader {} checkin returned'.format(os.getpid()), ret)
+        #print('driver: leader {} checkin returned'.format(os.getpid()), ret)
         sys.stdout.flush()
-        ret = ret['result']  # XXX this might not be there
+        ret = ret.get('result')
         if ret is None:
+            # either server sent None or there was a network error
             time.sleep(0.1)
             continue
         if ret['state'] == 'exiting':
-            print('driver: leader {}: received surprising exiting status'.format(os.getpid()))
-            # XXX should nuke the mpirun similar to below
+            # XXX consolidate with the duplicate code below
+            mpi_proc.send_signal(signal.SIGINT)
+            completed = finish_mpi(mpi_proc)
+            status = check_mpi(mpi_proc)
+            #print('driver: leader {}: received surprising exiting status'.format(os.getpid()))
             sys.stdout.flush()
-            return
+            return {'cli': completed}
 
         if ret['state'] == 'running':
             if state == 'running':
                 assert mpi_proc is not None
             else:
                 mpi_proc = leader_start_mpi(pset, ret, wanted, user_kwargs)
-                print('driver: leader {} just started mpi proc and poll returns'.format(os.getpid()), check_mpi(mpi_proc))
+                #print('driver: leader {} just started mpi proc and poll returns'.format(os.getpid()), check_mpi(mpi_proc))
                 state = 'running'
         elif ret['state'] == 'waiting' and mpi_proc is not None:
             # oh oh! mpi-helper thinks something bad happened. perhaps one of my followers timed out?
@@ -129,40 +148,43 @@ def leader(pset, system_kwargs, user_kwargs):
             mpi_proc.send_signal(signal.SIGINT)
             completed = finish_mpi(mpi_proc)
             status = check_mpi(mpi_proc)
-            print('driver: leader {} bailing out on state==waiting post mpi_proc'.format(os.getpid()))
+            #print('driver: leader {} bailing out on state==waiting post mpi_proc'.format(os.getpid()))
+            sys.stdout.flush()
             return {'cli': completed}
 
         if mpi_proc:
             status = check_mpi(mpi_proc)
-            print('driver: leader {} checking mpirun: '.format(os.getpid()), status)
-            os.system('ps')
+            #print('driver: leader {} checking mpirun: '.format(os.getpid()), status)
+            #os.system('ps')
             if status is not None:
-                print('driver: leader {} observes normal exit'.format(os.getpid()))
+                #print('driver: leader {} observes normal exit'.format(os.getpid()))
                 state = 'exiting'
                 completed = finish_mpi(mpi_proc)  # should complete immediately
                 for _ in range(100):
                     ret = leader_checkin(ncores, wanted, pubkey, state, lseq)
-                    print('driver: leader {} checkin post-normal exit returned'.format(os.getpid()), ret)
+                    #print('driver: leader {} checkin post-normal exit returned'.format(os.getpid()), ret)
                     if ret['result'] and ret['result']['state'] == 'exiting':
                         break
                     time.sleep(0.1)
                 return {'cli': completed}
 
-        time.sleep(0.1)
-    return
+        if not mpi_proc:
+            time.sleep(0.1)
+
+    raise ValueError('notreached')
 
 
 def follower(pset, system_kwargs, user_kwargs):
-    print('I am follower and my pid is {}'.format(os.getpid()))
+    #print('I am follower and my pid is {}'.format(os.getpid()))
     fseq = 0
     state = 'available'
     ncores = pset['ncores']
 
     while True:
-        print('driver: follower checkin with state', state)
+        #print('driver: follower checkin with state', state)
         sys.stdout.flush()
         ret = follower_checkin(ncores, state, fseq)
-        print('driver: follower checkin returned', ret)
+        #print('driver: follower checkin returned', ret)
         sys.stdout.flush()
         ret = ret['result']
         if ret is None:
@@ -173,7 +195,7 @@ def follower(pset, system_kwargs, user_kwargs):
             # do this only once
             deploy_pubkey(ret['pubkey'])
         elif ret['state'] == 'exiting':
-            print('driver: follower told to exit')
+            #print('driver: follower told to exit')
             break
 
         state = ret['state']
@@ -192,6 +214,52 @@ def mpi_multinode_worker(pset, system_kwargs, user_kwargs):
         return follower(pset, system_kwargs, user_kwargs)
 
 
+def mysignal(helper_server_proc, signum, frame):
+    if signum == signal.SIGINT:
+        global sigint_count
+        sigint_count += 1
+        if sigint_count == 1:
+            print('driver: ^C seen, type it again to tear down', file=sys.stderr)
+        elif sigint_count == 2:
+            print('driver: tearing down for ^C', file=sys.stderr)
+            # XXX this doesn't tear down ray workers
+            tear_down_mpi_helper_server(helper_server_proc)
+            sys.exit(1)
+        else:
+            print('driver: additional sigint ignored', file=sys.stderr)
+
+
+def start_mpi_helper_server(hostport=':8889'):
+    host, port = hostport.split(':', maxsplit=1)
+    if not host:
+        host = socket.gethostname()
+    global url
+    url = 'http://{}:{}/jsonrpc'.format(host, port)
+
+    global helper_server_proc
+    helper_server_proc = subprocess.Popen(['python', './mpi_helper_server.py', host, port])
+
+    status = check_mpi_helper_server(helper_server_proc, timeout=1.0)
+    if status is not None:
+        print('driver: mpi helper server exited immediately with status', status, file=sys.stderr)
+        # at the moment this server doesn't use pipes so out,err are None
+        outs, errs = helper_server_proc.communicate()
+        if outs:
+            print('driver: mpi helper stdout is', outs, file=sys.stderr)
+        if errs:
+            print('driver: mpi helper stderr is', errs, file=sys.stderr)
+        raise ValueError('cannot continue without mpi_helper_server')
+
+    hw = hello_world()
+    if hw != 'pass':
+        raise ValueError('hello world test of mpi_helper server returned: '+hw)
+
+    # XXX add more checks, perhaps in a paramsurvey.map() timer function?
+
+    mysignal_ = functools.partial(mysignal, helper_server_proc)
+    signal.signal(signal.SIGINT, mysignal_)
+
+
 def tear_down_mpi_helper_server(helper_server_proc):
     helper_server_proc.send_signal(signal.SIGHUP)
     for _ in range(10):
@@ -203,39 +271,6 @@ def tear_down_mpi_helper_server(helper_server_proc):
         helper_server_proc.kill()
 
 
-def mysignal(helper_server_proc, signum, frame):
-    if signum == signal.SIGINT:
-        global sigint_count
-        sigint_count += 1
-        if sigint_count == 1:
-            print('driver: ^C seen, type it again to tear down', file=sys.stderr)
-        elif sigint_count == 2:
-            print('driver: tearing down for ^C', file=sys.stderr)
-            tear_down_mpi_helper_server(helper_server_proc)
-            sys.exit(1)
-        else:
-            print('driver: additional sigint ignored', file=sys.stderr)
-
-
-def start_mpi_helper_server():
-    # We can't really use capture_output/stdin/stdout for the server because we have no way to repeatedly call .communicate()
-
-    global helper_server_proc
-    helper_server_proc = subprocess.Popen(['python', './mpi_helper_server.py'])
-
-    time.sleep(1)  # give the mpi helper time to get going... might crash with port in use
-
-    status = check_mpi_helper_server(helper_server_proc)
-    if status is not None:
-        print('driver: mpi helper server exited immediately with status', status, file=sys.stderr)
-        raise ValueError('cannot continue without mpi_helper_server')
-
-    # XXX add more checks, perhaps in a paramsurvey.map() timer function?
-
-    mysignal_ = functools.partial(mysignal, helper_server_proc)
-    signal.signal(signal.SIGINT, mysignal_)
-
-
 def end_mpi_helper_server():    
     status = check_mpi_helper_server(helper_server_proc)
     if status is not None:
@@ -245,13 +280,11 @@ def end_mpi_helper_server():
         tear_down_mpi_helper_server(helper_server_proc)
 
 
-def check_mpi_helper_server(helper_server_proc):
-    # proc.communicate(timeout=1)
-    # TimeoutExpired: -- continue
-    # outs, errs = proc.communicate() *if* user specified kwargs, else None, None
-    # finally the status is in .poll()
-    # to imitate subprocess.run return a subprocess.CompletedProcess object
-    # (args, returncode, stdout, stderr, check_returncode)
+def check_mpi_helper_server(helper_server_proc, timeout=1.0):
+    try:
+        outs, errs = helper_server_proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        pass
     return helper_server_proc.poll()
 
 
@@ -264,29 +297,17 @@ def run_mpi(cmd, **kwargs):
     return subprocess.Popen(cmd, **kwargs)
 
 
-def check_mpi(proc):
+def check_mpi(proc, timeout=0.1):
     try:
-        outs, errs = proc.communicate(timeout=0.01)
-        print('outs', outs)
-        print('errs', errs)
+        # we have to call this enough to not block if pipes are used and fill up
+        outs, errs = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         pass
     return proc.poll()
 
 
 def finish_mpi(proc):
-    '''We might be called right after sending a SIGINT to the mpi proc'''
+    # called either after sending sigint or a previous poll saw it exit
+    outs, errs = proc.communicate()  # no timeout, will sleep until exit
     returncode = proc.poll()
-    outs, errs = proc.communicate()
-
-    count = 0
-    while returncode is None:
-        time.sleep(1.0)
-        returncode = proc.poll()
-        outs, errs = proc.communicate()
-        count += 1
-        if count > 10:
-            proc.send_signal(signal.SIGKILL)
-            break
-
     return subprocess.CompletedProcess(args=None, returncode=returncode, stdout=outs, stderr=errs)
