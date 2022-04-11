@@ -4,6 +4,7 @@ Miscellaneous work-in-progress code related to EHT correlation in the cloud usin
 
 * bench -- simple benchmarking scripts for cloud transport and recording
 * difx -- scripts related to making [DiFX](https://github.com/difx/)  easier to build and test
+* mpi-helper -- scripts to run multi-node MPI jobs inside paramsurvey
 * scripts - miscellaneous scripts for actually running DiFX, most of which should be eventually merged into DiFX
 * singularity - code related to DiFX inside Singularity containers
 * slurm - code related to running DiFX inside Singularity on the Slurm batch system
