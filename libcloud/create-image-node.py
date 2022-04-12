@@ -13,9 +13,9 @@ def gce_service_account_driver():
     my_pem_file = 'eht-cloud-b038a415dc0d.json'  # created Jan 16 2022, in home-desktop/Download
     with open(my_pem_file) as config_fd:
         j = json.load(config_fd)
-        service_id = j['client_email']    
+        service_id = j['client_email']
         project_id = j['project_id']
-        
+
     driver = ComputeEngine(service_id, my_pem_file,
                            project=project_id,
                            datacenter=datacenter)
@@ -34,7 +34,7 @@ def do_it(driver, name):
         # [<NodeSize: id=1, name=256 server, ram=256 ... driver=Rackspace ...>, ...]
 
         for i in images:
-            if i.name.startswith('ubuntu-1804'):
+            if i.name.startswith('ubuntu-2004'):
                 print(i.name)
                 # last matching image wins
                 image = i

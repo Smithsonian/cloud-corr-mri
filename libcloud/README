@@ -10,6 +10,8 @@ BOOTSTRAPPING MY CUSTOM IMAGE
 delete existing libcloud* instance
 python create-image-node.py
 
+NOTE: need python 3.7+ for aiohttp_rpc (it uses dataclasses)
+
 Now you have a running instance named libcloud-test-greg-service-account
 
 log in and install stuff
@@ -31,6 +33,12 @@ pip install paramsurvey[ray] boto3
 
 # went back a second time, didn't do that
 
+su - ubuntu
+mkdir github
+cd github
+git clone https://github.com/Smithsonian/cloud-corr-mri.git
+cd cloud-corr-mri/mpi-helper
+pip install -r requirements.txt
 
 
 stopped instance via cli
