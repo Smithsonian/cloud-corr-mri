@@ -43,7 +43,7 @@ def main():
     # XXX shouldn't paramsurvey hide this?
     for p in psets:
         if 'ncores' in p:
-            p['ray'] = {'ncores': p.get('ncores')}
+            p['ray'] = {'num_cores': p.get('ncores')}
 
     # example of how to return stdout from the cli process
     user_kwargs = {'run_kwargs': {
