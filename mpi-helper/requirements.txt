@@ -4,7 +4,6 @@ aiohttp-rpc
 requests
 psutil
 aiohttp
-aiohttp_rpc
 
 # for development
 pytest

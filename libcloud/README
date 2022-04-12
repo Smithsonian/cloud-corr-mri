@@ -1,7 +1,41 @@
-https://libcloud.readthedocs.io/en/stable/compute/drivers/gce.html
+
 
 In create-nodes.py, all 3 auth modes work
 
 For service account usage with API code like "Ray":
 export GOOGLE_APPLICATION_CREDENTIALS=eht-cloud-b038a415dc0d.json
+
+BOOTSTRAPPING MY CUSTOM IMAGE
+
+delete existing libcloud* instance
+python create-image-node.py
+
+Now you have a running instance named libcloud-test-greg-service-account
+
+log in and install stuff
+
+click ssh button
+sudo -H bash
+apt update
+apt dist-upgrade
+apt install -y openmpi-common openmpi-bin
+
+apt -y install python3 emacs25
+update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+apt-get -y install python3-pip
+update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+
+# still as root
+pip install paramsurvey[ray] boto3
+# hangs installing grpcio
+
+# went back a second time, didn't do that
+
+
+
+stopped instance via cli
+
+NOW MAKE A CUSTOM IMAGE FROM IT
+
+compute engine -> left bar storage -> images -> pick libcloud-test-greg-service-account -> regional us-central1 -> name greg-test -> create
 

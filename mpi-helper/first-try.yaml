@@ -1,0 +1,51 @@
+# https://docs.ray.io/en/latest/cluster/config.html#minimal-configuration
+
+# A unique identifier for the head node and workers of this cluster.
+cluster_name: gce-ray-minimal-greg  # this works despite the regex claiming that '-' is not allwoed
+
+# min_workers: 1  # can't set this here, only max_workers
+max_workers: 6  # is this ignored?
+
+# Cloud-provider specific configuration.
+provider:
+    type: gcp
+    region: us-central1
+    availability_zone: us-central1-c
+    project_id: eht-cloud # Globally unique project id
+
+available_node_types:
+    ray_head_default:
+        resources: {"CPU": 2}
+        node_config:
+            machineType: n1-standard-2
+            disks:
+                - boot: true
+                  autoDelete: true
+                  type: PERSISTENT
+                  initializeParams:
+                      diskSizeGb: 50
+                      # sourceImage: greg-test
+                      # gcloud compute images list --uri | grep greg
+                      sourceImage: https://www.googleapis.com/compute/v1/projects/eht-cloud/global/images/greg-test
+                      
+        max_workers: 0  # needed even though one would think it isn't needed here
+    ray_worker_small:
+        min_workers: 2
+        max_workers: 2
+        resources: {"CPU": 2}  # must be specified
+        node_config:
+            machineType: n1-standard-2
+            disks:
+                - boot: true
+                  autoDelete: true
+                  type: PERSISTENT
+                  initializeParams:
+                      diskSizeGb: 50
+                      # sourceImage: greg-test
+                      sourceImage: https://www.googleapis.com/compute/v1/projects/eht-cloud/global/images/greg-test
+
+head_node_type: ray_head_default
+
+# How Ray will authenticate with newly launched nodes.
+auth:
+    ssh_user: ubuntu
