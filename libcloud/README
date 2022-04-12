@@ -20,9 +20,9 @@ click ssh button
 sudo -H bash
 apt update
 apt dist-upgrade
-apt install -y openmpi-common openmpi-bin
+apt install -y openmpi-common openmpi-bin emacs25
 
-apt -y install python3 emacs25
+apt -y install python3
 update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 apt-get -y install python3-pip
 update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1

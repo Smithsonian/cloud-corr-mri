@@ -6,7 +6,7 @@ from libcloud.compute.providers import get_driver
 
 
 ComputeEngine = get_driver(Provider.GCE)
-datacenter='us-central1-c'
+datacenter = 'us-central1-c'
 
 
 def gce_service_account_driver():
@@ -25,20 +25,23 @@ def gce_service_account_driver():
 def do_it(driver, name):
     try:
         print('Name:', name)
-        images = driver.list_images()
-        print('found {} images'.format(len(images)))
+        #images = driver.list_images(ex_project='ubuntu-os-cloud')  # just 1 ubuntu-1804 image here ? no 2004
+        #images = driver.list_images()
+        #print('found {} images'.format(len(images)))
         # [<NodeImage: id=3, name=Gentoo 2008.0, driver=Rackspace  ...>, ...]
 
         sizes = driver.list_sizes()
         print('found {} sizes'.format(len(sizes)))
         # [<NodeSize: id=1, name=256 server, ram=256 ... driver=Rackspace ...>, ...]
 
-        for i in images:
-            if i.name.startswith('ubuntu-2004'):
-                print(i.name)
-                # last matching image wins
-                image = i
+        #for i in images:
+        #    if i.name.startswith('ubuntu-2004'):
+        #        print(i.name)
+        #        # last matching image wins
+        #        image = i
         #image = [i for i in images if i.name == 'ubuntu-1804-bionic-v20220111'][0]  # updated from example
+        image = None
+        image_family = 'ubuntu-2004-lts'
         size = [s for s in sizes if s.name == 'e2-medium'][0]  # 2 vcpu, 4 gigs
 
         print('image', str(image))
@@ -47,11 +50,12 @@ def do_it(driver, name):
 
         # generic example
         # https://libcloud.readthedocs.io/en/stable/compute/examples.html
-        node = driver.create_node(name='libcloud-test-greg-'+name, image=image, size=size)
+        node = driver.create_node(name='libcloud-test-greg-'+name,
+                                  image=None, ex_image_family=image_family, size=size)
         print('Created Node:', str(node.name))
-    except:
+    except Exception:
         raise
-        
+
 
 if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
     print('Found a GOOGLE_APPLICATION_CREDENTIALS environment variable, ignoring it in this process.')
