@@ -239,7 +239,7 @@ def start_mpi_helper_server(hostport=':8889'):
     global helper_server_proc
     helper_server_proc = subprocess.Popen(['python', './mpi_helper_server.py', host, port])
 
-    status = check_mpi_helper_server(helper_server_proc, timeout=1.0)
+    status = check_mpi_helper_server(helper_server_proc, timeout=3.0)
     if status is not None:
         print('driver: mpi helper server exited immediately with status', status, file=sys.stderr)
         # at the moment this server doesn't use pipes so out,err are None

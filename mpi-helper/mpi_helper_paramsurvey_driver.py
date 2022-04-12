@@ -13,14 +13,23 @@ import mpi_helper_client as client
 def main():
     parser = argparse.ArgumentParser(description='difx_paramsurvey_driver, run inside ray')
     parser.add_argument('--resources', action='store', default='')
+    parser.add_argument('--ray', action='store_true')
     args = parser.parse_args()
 
     #client.start_mpi_helper_server(hostport='localhost:8889')
     #client.start_mpi_helper_server(hostport='0.0.0.0:8889')
     client.start_mpi_helper_server()
 
-    #paramsurvey.init(backend='ray')
-    paramsurvey.init(backend='multiprocessing', ncores=7)
+    if args.ray:
+        kwargs = {
+            'backend': 'ray',
+            'ray': {'address': 'auto'},
+        }
+    else:
+        kwargs = {
+            'backend': 'multiprocessing', 'ncores': 7,
+        }
+    paramsurvey.init(**kwargs)
 
     psets = [
         {'kind': 'leader', 'ncores': 1, 'run_args': 'mpirun -np {} ./a.out', 'wanted': 3},
