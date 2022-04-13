@@ -143,7 +143,7 @@ def key(ip, pid):
 
 def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
     if exiting:
-        #print('mpi_helper_server: saw leader checkin after I was HUPped', file=sys.stderr)
+        #print('multimpi_server: saw leader checkin after I was HUPped', file=sys.stderr)
         return {'followers': None, 'state': 'exiting'}
 
     lkey = key(ip, pid)
@@ -245,7 +245,7 @@ def leader_checkin(ip, cores, pid, wanted_cores, pubkey, remotestate, lseq_new):
 
 def follower_checkin(ip, cores, pid, remotestate, fseq_new):
     if exiting:
-        #print('mpi_helper_server: saw follower checkin after I was HUPped', file=sys.stderr)
+        #print('multimpi_server: saw follower checkin after I was HUPped', file=sys.stderr)
         return {'state': 'exiting'}
 
     k = key(ip, pid)
@@ -332,12 +332,12 @@ def mysignal(signum, frame):
         if leaders or followers:
             cache_clean_exiting()
             if leaders or followers:
-                #print('mpi helper server: exiting all work', file=sys.stderr)
-                #print('mpi helper server: {} leaders and {} followers remain'.format(len(leaders), len(followers)), file=sys.stderr)
+                #print('multimpi server: exiting all work', file=sys.stderr)
+                #print('multimpi server: {} leaders and {} followers remain'.format(len(leaders), len(followers)), file=sys.stderr)
                 return
         exit(0)
     else:
-        #print('mpi helper server: surprised to receive signal', signum, file=sys.stderr)
+        #print('multimpi server: surprised to receive signal', signum, file=sys.stderr)
         pass
 
 

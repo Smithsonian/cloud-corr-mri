@@ -1,4 +1,3 @@
-import requests
 import os
 import os.path
 import socket
@@ -7,6 +6,11 @@ import time
 import signal
 import sys
 import functools
+
+import requests
+
+import multimpi
+
 
 url = "http://localhost:8889/jsonrpc"
 timeout = (4, 1)  # connect, read
@@ -206,7 +210,7 @@ def follower(pset, system_kwargs, user_kwargs):
     return {'cli': 'hi pandas'}
 
 
-def mpi_multinode_worker(pset, system_kwargs, user_kwargs):
+def multimpi_worker(pset, system_kwargs, user_kwargs):
     if pset['kind'] == 'leader':
         return leader(pset, system_kwargs, user_kwargs)
 
@@ -223,13 +227,13 @@ def mysignal(helper_server_proc, signum, frame):
         elif sigint_count == 2:
             print('driver: tearing down for ^C', file=sys.stderr)
             # XXX this doesn't tear down ray workers
-            tear_down_mpi_helper_server(helper_server_proc)
+            tear_down_multimpi_server(helper_server_proc)
             sys.exit(1)
         else:
             print('driver: additional sigint ignored', file=sys.stderr)
 
 
-def start_mpi_helper_server(hostport=':8889'):
+def start_multimpi_server(hostport=':8889'):
     host, port = hostport.split(':', maxsplit=1)
     if not host:
         host = socket.gethostname()
@@ -237,9 +241,10 @@ def start_mpi_helper_server(hostport=':8889'):
     url = 'http://{}:{}/jsonrpc'.format(host, port)
 
     global helper_server_proc
-    helper_server_proc = subprocess.Popen(['python', './mpi_helper_server.py', host, port])
+    daemon = multimpi.__file__.replace('/__init__.py', '/server.py')
+    helper_server_proc = subprocess.Popen(['python', daemon, host, port])
 
-    status = check_mpi_helper_server(helper_server_proc, timeout=3.0)
+    status = check_multimpi_server(helper_server_proc, timeout=3.0)
     if status is not None:
         print('driver: mpi helper server exited immediately with status', status, file=sys.stderr)
         # at the moment this server doesn't use pipes so out,err are None
@@ -248,11 +253,11 @@ def start_mpi_helper_server(hostport=':8889'):
             print('driver: mpi helper stdout is', outs, file=sys.stderr)
         if errs:
             print('driver: mpi helper stderr is', errs, file=sys.stderr)
-        raise ValueError('cannot continue without mpi_helper_server')
+        raise ValueError('cannot continue without multimpi_server')
 
     hw = hello_world()
     if hw != 'pass':
-        raise ValueError('hello world test of mpi_helper server returned: '+hw)
+        raise ValueError('hello world test of multimpi server returned: '+hw)
 
     # XXX add more checks, perhaps in a paramsurvey.map() timer function?
 
@@ -260,10 +265,10 @@ def start_mpi_helper_server(hostport=':8889'):
     signal.signal(signal.SIGINT, mysignal_)
 
 
-def tear_down_mpi_helper_server(helper_server_proc):
+def tear_down_multimpi_server(helper_server_proc):
     helper_server_proc.send_signal(signal.SIGHUP)
     for _ in range(10):
-        status = check_mpi_helper_server(helper_server_proc)
+        status = check_multimpi_server(helper_server_proc)
         if status is not None:
             break
         time.sleep(1.0)
@@ -271,16 +276,16 @@ def tear_down_mpi_helper_server(helper_server_proc):
         helper_server_proc.kill()
 
 
-def end_mpi_helper_server():    
-    status = check_mpi_helper_server(helper_server_proc)
+def end_multimpi_server():    
+    status = check_multimpi_server(helper_server_proc)
     if status is not None:
-        print('driver: looked at mpi_helper and it had already exited with status', str(status), file=sys.stderr)
+        print('driver: looked at multimpi and it had already exited with status', str(status), file=sys.stderr)
     else:
-        print('driver: mpi_helper has not exited already, tearing it down', file=sys.stderr)
-        tear_down_mpi_helper_server(helper_server_proc)
+        print('driver: multimpi has not exited already, tearing it down', file=sys.stderr)
+        tear_down_multimpi_server(helper_server_proc)
 
 
-def check_mpi_helper_server(helper_server_proc, timeout=1.0):
+def check_multimpi_server(helper_server_proc, timeout=1.0):
     try:
         outs, errs = helper_server_proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:

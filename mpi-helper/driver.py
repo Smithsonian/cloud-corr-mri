@@ -1,5 +1,4 @@
 import argparse
-import sys
 import subprocess
 
 import paramsurvey
@@ -10,23 +9,15 @@ import multimpi.client as client
 # Google cloud HPC checklist https://cloud.google.com/architecture/best-practices-for-using-mpi-on-compute-engine#checklist
 # Google storage: https://cloud.google.com/storage/docs/best-practices
 
-def mpi_multinode_worker(pset, system_kwargs, user_kwargs):
-    if pset['kind'] == 'leader':
-        return client.leader(pset, system_kwargs, user_kwargs)
-
-    if pset['kind'] == 'follower':
-        return client.follower(pset, system_kwargs, user_kwargs)
-
-
 def main():
     parser = argparse.ArgumentParser(description='difx_paramsurvey_driver, run inside ray')
     parser.add_argument('--resources', action='store', default='')
     parser.add_argument('--ray', action='store_true')
     args = parser.parse_args()
 
-    #client.start_mpi_helper_server(hostport='localhost:8889')
-    #client.start_mpi_helper_server(hostport='0.0.0.0:8889')
-    client.start_mpi_helper_server()
+    #client.start_multimpi_server(hostport='localhost:8889')
+    #client.start_multimpi_server(hostport='0.0.0.0:8889')
+    client.start_multimpi_server()
 
     if args.ray:
         kwargs = {
@@ -60,9 +51,9 @@ def main():
     }}
     user_kwargs = {}
 
-    results = paramsurvey.map(mpi_multinode_worker, psets, user_kwargs=user_kwargs)
+    results = paramsurvey.map(client.multimpi_worker, psets, user_kwargs=user_kwargs)
 
-    client.end_mpi_helper_server()
+    client.end_multimpi_server()
 
     #assert results.progress.failures == 0
     print('driver: after map, failures is', results.progress.failures)

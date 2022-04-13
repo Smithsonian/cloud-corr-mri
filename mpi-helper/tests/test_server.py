@@ -1,6 +1,6 @@
 from functools import partial
 
-from mpi_helper_server import leader_checkin, follower_checkin, clear
+from multimpi.server import leader_checkin, follower_checkin, clear
 
 
 # mock time.time()
@@ -72,7 +72,7 @@ def test_leadfollow():
     fseq += 1
     ret = f('available', fseq)
     assert not ret
-    # helper now should have f 'available', but there's no way to test that
+    # multimpi server now should have f 'available', but there's no way to test that
     # never going to reschedule as long as the leader doesn't call in
     ret = f('available', fseq)
     assert not ret
@@ -88,38 +88,3 @@ def test_leadfollow():
     assert 'leader' in ret
     assert 'pubkey' in ret
     assert ret['state'] == 'assigned'
-
-# write client code to deploy public key and fire off mpi and find the processes and track them until they exit
-
-# utils
-# ^ DO have a 30 second async timer for expiration
-# ^ DO print warning when leaders or followers timeout
-# ^ DO print warning when a leader/follower checks in with running when we think they're idle
-# ^ DO print warning when a leader/follower checks in with available when we think they're running
-#       this can happen as a race at mpi exit
-
-# l, f, l (success), f (success)
-# l, f, l (success), f2 (fail), f2 (success?) or maybe l, f2
-# f, l, f2, l (success), f2 (success)
-# f, l (success), l2 (success), f (success)
-# f1, f2, l, ...
-
-# could have scheduled but for a timeout
-# scheduled and then timeout before follower checks in again
-# shduled, timeout f, then f2 gets scheudled instead
-
-# successful schedule but one follower never checks in again (cache timeout)
-# f, l, timeout, f, l (success)
-
-# successful schedule but one follower restarts before picking up
-# successful schedule but leader reboots
-# successful schedule but leader becomes follower
-# successful schedule but follower becomes leader
-
-
-# state table exploration
-# create a couple of leaders, followers, both have a % chance of restarting
-# do a couple of work units
-# make sure it finishes
-# count how many calls
-# should rise as %restart increases

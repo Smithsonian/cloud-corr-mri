@@ -4,7 +4,7 @@ import pytest
 
 import requests_mock
 
-import mpi_helper_client
+from multimpi import client
 
 
 def test_pubkey(fs):  # pyfakefs
@@ -14,16 +14,16 @@ def test_pubkey(fs):  # pyfakefs
     fake = 'a fake public key\n'
     with open(pubfile, 'w') as f:
         f.write(fake)
-    assert mpi_helper_client.get_pubkey() == fake
+    assert client.get_pubkey() == fake
 
     keyfile = os.path.expanduser('~/.ssh/authorized_keys')
-    mpi_helper_client.deploy_pubkey(fake)
+    client.deploy_pubkey(fake)
     assert os.path.exists(keyfile)
     assert stat.filemode(os.stat(keyfile).st_mode) == '-rw-------'
     with open(keyfile) as f:
         assert f.read() == fake
 
-    mpi_helper_client.deploy_pubkey(fake)
+    client.deploy_pubkey(fake)
     assert stat.filemode(os.stat(keyfile).st_mode) == '-rw-------'
     with open(keyfile) as f:
         assert f.read() == fake  # make sure it doesn't write twice
@@ -36,14 +36,14 @@ def test_jsonrpc_retries():
 
         with pytest.raises(ValueError):
             for i in range(1000):
-                ret = mpi_helper_client.leader_checkin(1, 1, 1, 1, 1)
+                ret = client.leader_checkin(1, 1, 1, 1, 1)
         assert i > 1, 'leader does not immediately crash'
         assert 'result' in ret, 'leader returns a result'
         assert ret['result'] is None, 'leader returns a None result'
 
         with pytest.raises(ValueError):
             for i in range(1000):
-                ret = mpi_helper_client.follower_checkin(1, 1, 1)
+                ret = client.follower_checkin(1, 1, 1)
         assert i > 1
         assert 'result' in ret
         assert ret['result'] is None

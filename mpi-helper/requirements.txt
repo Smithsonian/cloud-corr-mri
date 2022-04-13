@@ -3,7 +3,6 @@ aiohttp
 aiohttp-rpc
 requests
 psutil
-aiohttp
 
 # for development
 pytest
