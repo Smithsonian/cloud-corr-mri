@@ -4,11 +4,19 @@ import subprocess
 
 import paramsurvey
 
-import mpi_helper_client as client
+import multimpi.client as client
 
 
 # Google cloud HPC checklist https://cloud.google.com/architecture/best-practices-for-using-mpi-on-compute-engine#checklist
 # Google storage: https://cloud.google.com/storage/docs/best-practices
+
+def mpi_multinode_worker(pset, system_kwargs, user_kwargs):
+    if pset['kind'] == 'leader':
+        return client.leader(pset, system_kwargs, user_kwargs)
+
+    if pset['kind'] == 'follower':
+        return client.follower(pset, system_kwargs, user_kwargs)
+
 
 def main():
     parser = argparse.ArgumentParser(description='difx_paramsurvey_driver, run inside ray')
@@ -52,7 +60,7 @@ def main():
     }}
     user_kwargs = {}
 
-    results = paramsurvey.map(client.mpi_multinode_worker, psets, user_kwargs=user_kwargs)
+    results = paramsurvey.map(mpi_multinode_worker, psets, user_kwargs=user_kwargs)
 
     client.end_mpi_helper_server()
 
