@@ -1,6 +1,6 @@
 from functools import partial
 
-from multimpi.server import leader_checkin, follower_checkin, clear
+from paramsurvey_multimpi.server import leader_checkin, follower_checkin, clear
 
 
 # mock time.time()

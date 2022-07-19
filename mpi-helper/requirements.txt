@@ -10,3 +10,7 @@ flake8
 pylint
 pyfakefs
 requests_mock
+
+coverage
+pytest-cov
+pytest-sugar

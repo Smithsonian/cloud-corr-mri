@@ -9,7 +9,7 @@ import functools
 
 import requests
 
-import multimpi
+import paramsurvey_multimpi
 
 
 url = "http://localhost:8889/jsonrpc"
@@ -97,10 +97,13 @@ def hello_world():
 
 
 def leader_start_mpi(pset, ret, wanted, user_kwargs):
-    # XXX generate special difx hostfile
-    # ret['followers'] is a list of fkeys and core counts
+    # ret['followers'] is a list of fkeys and core counts (that's all we need to know for a machinesfile)
+    # XXX generate a generic mpirun hostfile, all config known
+    # XXX generate special difx hostfile, needs to know how many datastreams
+    # XXX optional call to mount a storage bucket, needs to know the name of the bucket
 
     cmd = pset['run_args'].format(int(wanted)).split()
+
     #print('leader {} about to run'.format(os.getpid()), cmd)
     run_kwargs = pset.get('run_kwargs') or user_kwargs.get('run_kwargs') or {}
     mpi_proc = run_mpi(cmd, **run_kwargs)
@@ -241,7 +244,7 @@ def start_multimpi_server(hostport=':8889'):
     url = 'http://{}:{}/jsonrpc'.format(host, port)
 
     global helper_server_proc
-    daemon = multimpi.__file__.replace('/__init__.py', '/server.py')
+    daemon = paramsurvey_multimpi.__file__.replace('/__init__.py', '/server.py')
     helper_server_proc = subprocess.Popen(['python', daemon, host, port])
 
     status = check_multimpi_server(helper_server_proc, timeout=3.0)
@@ -279,9 +282,9 @@ def tear_down_multimpi_server(helper_server_proc):
 def end_multimpi_server():    
     status = check_multimpi_server(helper_server_proc)
     if status is not None:
-        print('driver: looked at multimpi and it had already exited with status', str(status), file=sys.stderr)
+        print('looked at multimpi server and it had already exited with status', str(status), file=sys.stderr)
     else:
-        print('driver: multimpi has not exited already, tearing it down', file=sys.stderr)
+        print('multimpi server has not exited already, tearing it down', file=sys.stderr)
         tear_down_multimpi_server(helper_server_proc)
 
 

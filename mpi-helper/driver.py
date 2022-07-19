@@ -3,7 +3,7 @@ import subprocess
 
 import paramsurvey
 
-import multimpi.client as client
+import paramsurvey_multimpi.client as client
 
 
 # Google cloud HPC checklist https://cloud.google.com/architecture/best-practices-for-using-mpi-on-compute-engine#checklist
@@ -15,9 +15,9 @@ def main():
     parser.add_argument('--ray', action='store_true')
     args = parser.parse_args()
 
-    #client.start_multimpi_server(hostport='localhost:8889')
+    client.start_multimpi_server(hostport='localhost:8889')
     #client.start_multimpi_server(hostport='0.0.0.0:8889')
-    client.start_multimpi_server()
+    #client.start_multimpi_server()
 
     if args.ray:
         kwargs = {

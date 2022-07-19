@@ -4,7 +4,7 @@ import pytest
 
 import requests_mock
 
-from multimpi import client
+from paramsurvey_multimpi import client
 
 
 def test_pubkey(fs):  # pyfakefs
