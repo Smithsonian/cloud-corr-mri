@@ -31,7 +31,7 @@ def main():
     paramsurvey.init(**kwargs)
 
     psets = [
-        {'kind': 'leader', 'ncores': 1, 'run_args': 'mpirun -np {} ./a.out', 'wanted': 3},
+        {'kind': 'leader', 'ncores': 1, 'run_args': 'mpirun --machinefile {} -np {} ./a.out', 'wanted': 3},
         {'kind': 'follower', 'ncores': 1},
         {'kind': 'follower', 'ncores': 1},
     ]

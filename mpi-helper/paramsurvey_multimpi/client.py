@@ -6,6 +6,8 @@ import time
 import signal
 import sys
 import functools
+import tempfile
+from collections import defaultdict
 
 import requests
 
@@ -97,12 +99,29 @@ def hello_world():
 
 
 def leader_start_mpi(pset, ret, wanted, user_kwargs):
-    # ret['followers'] is a list of fkeys and core counts (that's all we need to know for a machinesfile)
-    # XXX generate a generic mpirun hostfile, all config known
+    # XXX where is the leader cores
+
+    # mpich: host1:2 ... openmpi: host1 slots=2
+    # openmpi does not allow repeats in the machinefile
+
+    machinefile = ''
+    sums = defaultdict(int)
+    sums[socket.gethostname()] += 1
+    for f in ret['followers']:
+        follower = f['fkey'].split('_', 1)[0]
+        cores = f['cores']
+        sums[follower] += cores
+    for f in sums:
+        machinefile += '{} slots={}\n'.format(f, sums[f])
+
+    mf = tempfile.NamedTemporaryFile(prefix='machinefile_', delete=False, mode='w')
+    mf.write(machinefile)
+    mf.close()
+
     # XXX generate special difx hostfile, needs to know how many datastreams
     # XXX optional call to mount a storage bucket, needs to know the name of the bucket
 
-    cmd = pset['run_args'].format(int(wanted)).split()
+    cmd = pset['run_args'].format(mf.name, int(wanted)).split()
 
     #print('leader {} about to run'.format(os.getpid()), cmd)
     run_kwargs = pset.get('run_kwargs') or user_kwargs.get('run_kwargs') or {}
