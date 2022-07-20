@@ -106,7 +106,7 @@ def leader_start_mpi(pset, ret, wanted, user_kwargs):
 
     machinefile = ''
     sums = defaultdict(int)
-    sums[socket.gethostname()] += 1
+    sums[socket.gethostname()] += ret['lcores']
     for f in ret['followers']:
         follower = f['fkey'].split('_', 1)[0]
         cores = f['cores']
