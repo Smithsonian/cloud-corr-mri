@@ -98,7 +98,16 @@ def hello_world():
     return 'pass'
 
 
-#def machinefile_openmp_DiFX(pset, ret, wanted, user_kwargs, sums):
+def unique_resources(ret):
+    sums = defaultdict(int)
+    sums[socket.gethostname()] += ret['lcores']
+    for f in ret['followers']:
+        follower = f['fkey'].split('_', 1)[0]
+        cores = f['cores']
+        sums[follower] += cores
+    return sums
+
+
 def machinefile_openmp_DiFX(user_kwargs, sums):
     # DiFX is a little unique:
     # Rank 0 is the manager
@@ -154,12 +163,7 @@ def machinefile_openmpi(pset, ret, wanted, user_kwargs):
     # openmpi: host1 slots=2
 
     machinefile = ''
-    sums = defaultdict(int)
-    sums[socket.gethostname()] += ret['lcores']
-    for f in ret['followers']:
-        follower = f['fkey'].split('_', 1)[0]
-        cores = f['cores']
-        sums[follower] += cores
+    sums = unique_resources(ret)
 
     if user_kwargs.get('machinefile') == 'DiFX':
         return machinefile_openmp_DiFX(user_kwargs, sums)
