@@ -1,6 +1,7 @@
 import os.path
 import stat
 import socket
+import sys
 import pytest
 
 import requests_mock
@@ -69,8 +70,9 @@ def test_machinefile_openmpi():
            'followers': []}
     machinesfile = client.machinefile_openmpi({}, ret, 2, user_kwargs)
     assert machinesfile == me+' slots=3\n'
-    machinesfile = client.machinefile_openmpi({}, ret, 4, user_kwargs)
-    assert machinesfile == me+' slots=3\n', 'XXX should fail for too few cores'
+    with pytest.raises(ValueError):
+        machinesfile = client.machinefile_openmpi({}, ret, 4, user_kwargs)
+        assert machinesfile == me+' slots=3\n', 'XXX should fail for too few cores'
 
     ret = {'lcores': 3,
            'followers': [
@@ -81,14 +83,25 @@ def test_machinefile_openmpi():
     assert machinesfile == me+' slots=3\nfoo slots=6\n'
 
 
-def test_openmpi_DiFX_machinefile():
+def test_openmpi_DiFX_machinefile(fs):  # pyfakefs
     me = socket.gethostname()
-    user_kwargs = {'mpi': 'openmpi', 'machinefile': 'DiFX', 'DiFX_datastreams': 3}
+    jobname = 'test_openmpi_DiFX'
+    user_kwargs = {'mpi': 'openmpi', 'machinefile': 'DiFX',
+                   'DiFX_datastreams': 3, 'DiFX_jobname': jobname}
     sums = {me: 3, 'foo': 6}
 
-    ret = client.machinefile_openmp_DiFX(user_kwargs, sums)
-    assert ret == '{}\n{}\nfoo\n{}\nfoo\n'.format(me, me, me)
-    # XXX test threads here, 1 and 5
+    ret = client.machinefile_openmp_DiFX(user_kwargs, sums.copy())
+    assert ret == ('{}\n{}\nfoo\n{}\nfoo\n'.format(me, me, me), '5\n')
+
+    user_kwargs['DiFX_datastreams'] = 2
+    ret = client.machinefile_openmp_DiFX(user_kwargs, sums.copy())
+    assert ret == ('{}\n{}\nfoo\n{}\nfoo\n'.format(me, me, me), '1\n5\n')
+
+    ret = client.machinefile_openmp_DiFX_file(user_kwargs, sums.copy())
+    assert ret == '', 'machinesfile empty and files created'
+    for suffix in ('.machines', '.threads'):
+        # this will raise FileNotFoundError if not found
+        os.remove(jobname + suffix)
 
     # 1 node, 3 datastreams
     # 3 nodes, 2 datstreams

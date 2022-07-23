@@ -132,6 +132,7 @@ def machinefile_openmp_DiFX(user_kwargs, sums):
         # more datastreams than nodes, lengthen the list
         nodelist += nodelist
     nodelist += nodelist  # add extra in case some nodes have all cores used
+    print('GREG using nodelist', nodelist)
 
     # allocate datastreams, iterating over eligible nodes
     ds_count = 0
@@ -147,16 +148,29 @@ def machinefile_openmp_DiFX(user_kwargs, sums):
             ds_count += 1
 
     # allocate compute nodes, running one MPI process per node
-    threads = ''
+    threadfile = ''
     for f in sums:
         if sums[f] > 0:
             machinefile += f + '\n'
-            threads += str(sums[f]) + '\n'
+            threadfile += str(sums[f]) + '\n'
             print('GREG: Core:', f, 'with threads', sums[f])
 
-    # XXX write threads into a file
+    return machinefile, threadfile
 
-    return machinefile
+
+def machinefile_openmp_DiFX_file(user_kwargs, sums):
+    machinefile, threadfile = machinefile_openmp_DiFX(user_kwargs, sums)
+    difx_job = user_kwargs['DiFX_jobname']
+
+    with open(difx_job + '.machines', 'w') as mf:
+        mf.write(machinefile)
+        mf.close()
+
+    with open(difx_job + '.threads', 'w') as tf:
+        tf.write(threadfile)
+        tf.close()
+
+    return ''
 
 
 def machinefile_openmpi(pset, ret, wanted, user_kwargs):
@@ -166,10 +180,15 @@ def machinefile_openmpi(pset, ret, wanted, user_kwargs):
     sums = unique_resources(ret)
 
     if user_kwargs.get('machinefile') == 'DiFX':
-        return machinefile_openmp_DiFX(user_kwargs, sums)
+        return machinefile_openmp_DiFX_file(user_kwargs, sums)
 
     for f in sums:
+        wanted -= sums[f]
         machinefile += '{} slots={}\n'.format(f, sums[f])
+
+    if wanted > 0:
+        raise ValueError('too few cores')
+
     return machinefile
 
 
@@ -186,13 +205,18 @@ def leader_start_mpi(pset, ret, wanted, user_kwargs):
         machinefile = machinefile_mpich(pset, ret, wanted, user_kwargs)
     else:
         raise ValueError('unknown mpi implementation: '+user_kwargs['mpi'])
-        
-    mf = tempfile.NamedTemporaryFile(prefix='machinefile_', delete=False, mode='w')
-    mf.write(machinefile)
-    mf.close()
 
-    # XXX generate special difx hostfile, needs to know how many datastreams
-    # XXX optional call to mount a storage bucket, needs to know the name of the bucket
+    if machinefile:
+        # empty machinefile means the above code already wrote out the machinefile
+        mf = tempfile.NamedTemporaryFile(prefix='machinefile_', delete=False, mode='w')
+        mf.write(machinefile)
+        mf.close()
+
+    # XXX optional call to mount a storage bucket, needs to know the name of the bucket to mount
+    if 'mount_google_bucket' in user_kwargs:
+        bucket = 'foo'
+        directory = 'bar'
+        ret = system()
 
     cmd = pset['run_args'].format(mf.name, int(wanted)).split()
 
