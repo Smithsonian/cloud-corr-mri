@@ -45,11 +45,18 @@ def main():
             p['ray'] = {'num_cores': p.get('ncores')}
 
     # example of how to return stdout from the cli process
-    user_kwargs = {'run_kwargs': {
-        'stdout': subprocess.PIPE, 'encoding': 'utf-8',
-        'stderr': subprocess.PIPE, 'encoding': 'utf-8',
-    }}
-    user_kwargs = {}
+    user_kwargs = {'run_kwargs':
+                   {
+                       #'stdout': subprocess.PIPE, 'encoding': 'utf-8',
+                       #'stderr': subprocess.PIPE, 'encoding': 'utf-8',
+                   }
+                  }
+    user_kwargs['mpi'] = 'openmpi'
+    user_kwargs['machinefile'] = 'DiFX'
+    user_kwargs['DiFX_datastreams'] = 1  # should come from joblist
+
+
+    #user_kwargs = {}
 
     results = paramsurvey.map(client.multimpi_worker, psets, user_kwargs=user_kwargs)
 

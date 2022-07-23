@@ -47,3 +47,11 @@ def test_jsonrpc_retries():
         assert i > 1
         assert 'result' in ret
         assert ret['result'] is None
+
+
+def test_machinefile_openmpi():
+    pass
+
+
+def test_openmpi_DiFX_machinefile():
+    pass

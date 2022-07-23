@@ -98,11 +98,60 @@ def hello_world():
     return 'pass'
 
 
-def leader_start_mpi(pset, ret, wanted, user_kwargs):
-    # XXX where is the leader cores
+#def machinefile_openmp_DiFX(pset, ret, wanted, user_kwargs, sums):
+def machinefile_openmp_DiFX(user_kwargs, sums):
+    # DiFX is a little unique:
+    # Rank 0 is the manager
+    # Ranks 1-N are the N datastreams.
+    # In a cluster these are Mark6 units. In the cloud these should be separate nodes.
+    # The rest of the ranks are "Core" objects, which are multi-threaded
+    # The number of threads for Core objects is recorded in the threads file
 
-    # mpich: host1:2 ... openmpi: host1 slots=2
-    # openmpi does not allow repeats in the machinefile
+    # openmpi does not allow repeats in the machinefile, so we do not use slots= syntax
+
+    machinefile = ''
+
+    leader = socket.gethostname()  # can't use localhost, openmpi will turn that into this hostname
+    machinefile += leader + '\n'
+    sums[leader] -= 1
+    print('GREG: leader:', leader)
+
+    datastreams = user_kwargs['DiFX_datastreams']
+
+    nodelist = list(sums.keys())
+    while len(nodelist) < datastreams:
+        # more datastreams than nodes, lengthen the list
+        nodelist += nodelist
+    nodelist += nodelist  # add extra in case some nodes have all cores used
+
+    # allocate datastreams, iterating over eligible nodes
+    ds_count = 0
+    while ds_count < datastreams:
+        try:
+            ds = nodelist.pop(0)
+        except IndexError:
+            raise ValueError('too few cores to configure datastreams')
+        if sums[ds] > 0:
+            print('GREG: datastream:', ds)
+            machinefile += ds + '\n'
+            sums[ds] -= 1
+            ds_count += 1
+
+    # allocate compute nodes, running one MPI process per node
+    threads = ''
+    for f in sums:
+        if sums[f] > 0:
+            machinefile += f + '\n'
+            threads += str(sums[f]) + '\n'
+            print('GREG: Core:', f, 'with threads', sums[f])
+
+    # XXX write threads into a file
+
+    return machinefile
+
+
+def machinefile_openmpi(pset, ret, wanted, user_kwargs):
+    # openmpi: host1 slots=2
 
     machinefile = ''
     sums = defaultdict(int)
@@ -111,9 +160,29 @@ def leader_start_mpi(pset, ret, wanted, user_kwargs):
         follower = f['fkey'].split('_', 1)[0]
         cores = f['cores']
         sums[follower] += cores
+
+    if user_kwargs.get('machinefile') == 'DiFX':
+        return machinefile_openmp_DiFX(user_kwargs, sums)
+
     for f in sums:
         machinefile += '{} slots={}\n'.format(f, sums[f])
+    return machinefile
 
+
+def machinefile_mpich(pset, ret, wanted, user_kwargs):
+    # mpich: host1:2
+    pass
+
+
+def leader_start_mpi(pset, ret, wanted, user_kwargs):
+    print('GREG user_kwargs', user_kwargs)
+    if user_kwargs['mpi'] == 'openmpi':
+        machinefile = machinefile_openmpi(pset, ret, wanted, user_kwargs)
+    elif user_kwargs['mpi'] == 'mpich':
+        machinefile = machinefile_mpich(pset, ret, wanted, user_kwargs)
+    else:
+        raise ValueError('unknown mpi implementation: '+user_kwargs['mpi'])
+        
     mf = tempfile.NamedTemporaryFile(prefix='machinefile_', delete=False, mode='w')
     mf.write(machinefile)
     mf.close()
