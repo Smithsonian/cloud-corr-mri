@@ -8,6 +8,7 @@ import sys
 import functools
 import tempfile
 from collections import defaultdict
+import shutil
 
 import requests
 
@@ -197,6 +198,26 @@ def machinefile_mpich(pset, ret, wanted, user_kwargs):
     pass
 
 
+def do_google_mount(bucket, directory):
+    os.makedirs(directory, exist_ok=True)
+    if not os.path.isdir(directory):
+        raise ValueError('mount point '+directory+' is not a directory')
+    # todo: mountpoint is empty?
+
+    exe = shutil.which('gcsfuse')
+    if not exe:
+        raise ValueError('cannot find gcsfuse comand in the PATH')
+
+    try:
+        ret = subprocess.call('gcsfuse --implicit-dirs {} {}'.format(bucket, directory))
+        if ret < 0:
+            raise ValueError('gcsfuse terminated by signal '+int(-ret))
+        elif ret > 0:
+            raise ValueError('gcsfuse returned '+int(ret))
+    except OSError as e:
+        raise ValueError('gcsfuse failed: '+e)
+
+
 def leader_start_mpi(pset, ret, wanted, user_kwargs):
     print('GREG user_kwargs', user_kwargs)
     if user_kwargs['mpi'] == 'openmpi':
@@ -212,11 +233,8 @@ def leader_start_mpi(pset, ret, wanted, user_kwargs):
         mf.write(machinefile)
         mf.close()
 
-    # XXX optional call to mount a storage bucket, needs to know the name of the bucket to mount
     if 'mount_google_bucket' in user_kwargs:
-        bucket = 'foo'
-        directory = 'bar'
-        ret = system()
+        do_google_mount(*user_kwargs['mount_google_bucket'])
 
     cmd = pset['run_args'].format(mf.name, int(wanted)).split()
 
