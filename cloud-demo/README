@@ -1,0 +1,232 @@
+export GOOGLE_APPLICATION_CREDENTIALS="/home/glindahl/cloud-demo/eht-cloud-b038a415dc0d.json"
+
+HPC instances:
+  c2 family (Intel)
+    c2-standard-60  # sadly no highcpu for c2
+  c2d family (AMD)
+    c2-highcpu-112
+
+  charges:
+    $0.02/vcpu hour
+    $0.003/gb hour (4gb per vcpu for both c2 and c2d standard)
+    (c2d high-cpu is 2gb per vcpu)
+    high cpu is $0.026/hour
+    normal is $0.032/hour
+    112 cores is $3/hour/node
+
+ray up -y demo.yml
+ray attach demo.yml
+...
+ray down -y demo.yml
+
+
+gcloud compute images list --uri | grep greg  # should show greg-test, does not
+# all urls start with https://www.googleapis.com/compute/v1/projects/ -- no eht-cloud in the list
+
+### failing because greg-test "The URL is malformed"
+### disk libcloud-test-greg-service-account exists but gets the same error
+
+# should be more like: https://www.googleapis.com/compute/v1/projects/eht-cloud/global/images/greg-test
+# googleapiclient.errors.HttpError: <HttpError 400 when requesting https://compute.googleapis.com/compute/v1/projects/eht-cloud/zones/us-central1-c/instances?alt=json returned "Invalid value for field 'resource.disks[0].initializeParams.sourceImage': 'https://www.googleapis.com/compute/v1/projects/eht-cloud/global/images/greg-test'. The referenced image resource cannot be found.". Details: "[{'message': "Invalid value for field 'resource.disks[0].initializeParams.sourceImage': 'https://www.googleapis.com/compute/v1/projects/eht-cloud/global/images/greg-test'. The referenced image resource cannot be found.", 'domain': 'global', 'reason': 'invalid'}]">
+
+# try libcloud-test-greg-service-account:
+# googleapiclient.errors.HttpError: <HttpError 400 when requesting https://compute.googleapis.com/compute/v1/projects/eht-cloud/zones/us-central1-c/instances?alt=json returned "Invalid value for field 'resource.disks[0]': '{  "type": "PERSISTENT",  "boot": true,  "initializeParams": {    "diskSizeGb": "50"  },  "autoDelet...'. Boot disk must have a source specified.". Details: "[{'message': 'Invalid value for field \'resource.disks[0]\': \'{  "type": "PERSISTENT",  "boot": true,  "initializeParams": {    "diskSizeGb": "50"  },  "autoDelet...\'. Boot disk must have a source specified.', 'domain': 'global', 'reason': 'invalid'}]">
+
+# greg-test was built in the libcloud dir (see README)
+# ok there is a greg-test machine image
+#   source image is libcloud-test-greg-service-account
+#   it knows it's a e2-medium but when I go to create an instance, it lets me change it to anything I like
+
+# ok try2:
+# see libcloud/create-image-node.py.out -- dated feb 1
+
+# libcloud/first-try.yml does this:
+# googleapiclient.errors.HttpError: <HttpError 400 when requesting https://compute.googleapis.com/compute/v1/projects/eht-cloud/zones/us-central1-c/instances?alt=json returned "Invalid value for field 'resource.disks[0].initializeParams.sourceImage': 'greg-test'. The URL is malformed.". Details: "[{'message': "Invalid value for field 'resource.disks[0].initializeParams.sourceImage': 'greg-test'. The URL is malformed.", 'domain': 'global', 'reason': 'invalid'}]">
+
+
+
+hello-world
+
+apt-get install openmpi-bin libopenmpi-dev
+pip install paramsurvey[ray]
+#install paramsurvey_multimpi from github
+#pip install git+https://github.com/Smithsonian/cloud-corr-mri.git
+pip install git+https://github.com/Smithsonian/paramsurvey_multimpi.git
+
+setup_commands: []  # a list
+{head,worker}_setup_commands: []  # also lists
+
+
+
+post hello-world
+
+* how do I update the persistant disk? Or I can copy over files in the yaml
+* make a skeleton of files for difx based on working/* and the golden scans
+* add a mount command for the bucket to startup
+
+pip install google-api-python-client  # it's in the ray venv
+pip install boto3  # not an explcit dependency, needed by "ray exec"
+
+sudo apt-get install apt-transport-https ca-certificates gnupg
+
+
+
+with leader 2 follower 112 wanted 114, got too few cores
+leader 112 wanted 112 is fine
+leader 2 follower 112 wanted 112 got too few cores
+/tmp/machinefile_* looks ok
+
+Ahah. it works the first time??
+ok let's run wanted 30 repeatedly OK
+wanted 70 repeatedly OK
+these are running everything on the big node
+
+added prints in client on leader node, but that does nothing
+added a unit test, no lucky
+
+running 2+68 = 70 only starts one
+then it hangs with 4 finished 2 waiting
+so apparently the followers all exited and it's just 2 leaders left?
+
+2+68 once does exit but gets the ORTE hostkey verification problem
+the machinefile has 2 lines as expected
+OK the fat node needed a "Y" to ssh to itself
+after that it gets fatal error in MPI_INIT
+
+
+TODO add a log entry for ^C
+
+
+
+
+
+
+AHAH
+
+ubuntu@ray-gce-ray-minimal-greg-head-11e47bc7-compute:~$ ssh ray-gce-ray-minimal-greg-worker-0aafc0d2-compute mpirun --help
+--------------------------------------------------------------------------
+Sorry!  You were supposed to get help about:
+    orterun:usage
+But I couldn't open the help file:
+    /tmp/usr/share/openmpi/help-orterun.txt: No such file or directory.  Sorry!
+-----------------------------------------------------------------------
+
+but
+
+ubuntu@ray-gce-ray-minimal-greg-worker-0aafc0d2-compute:~$ mpirun --help
+mpirun (Open MPI) 4.0.2
+
+ubuntu@ray-gce-ray-minimal-greg-head-11e47bc7-compute:~$ ssh ray-gce-ray-minimal-greg-worker-0aafc0d2-compute printenv | grep OPAL
+... is empty, should be OPAL_PREFIX=/usr
+
+but hello-world-env.c did print OPAL_PREFIX=/usr on both nodes
+
+
+
+
+
+
+
+with leader=2 follow=112 wanted=114 still gets too few cores on 2nd and 3rd run
+sums only shows the leader
+machinefile agrees
+return from server has no followers
+
+GREG making return with state running and fkeys is ['ray-gce-ray-minimal-greg-worker-0aafc0d2-compute_20765']
+ before schedule: waiting
+  schedule: wanted 112 cores in addition to leader cores 2
+   reschedule, after existing follower cores we still want 0
+   GREG did not need more followers
+   GREG existing followers are ['ray-gce-ray-minimal-greg-worker-0aafc0d2-compute_20765']
+    schedule, wanted 0 fkeys []
+ re-scheduled jobnumber 1
+ GREG rescheduling
+ GREG rescheduling: fkeys was already ['ray-gce-ray-minimal-greg-worker-0aafc0d2-compute_20765']
+ GREG rescheduling: adding new fkeys []
+ GREG after extend, here is the summary of fkeys
+ GREG  ray-gce-ray-minimal-greg-worker-0aafc0d2-compute_20765 cores 112
+  after schedule: scheduled
+GREG making return with state scheduled and fkeys is ['ray-gce-ray-minimal-greg-worker-0aafc0d2-compute_20765']
+
+
+      checking ray-gce-ray-minimal-greg-worker-0aafc0d2-compute_21960
+         not assigned or running, but  exiting
+  not all followers still exist, so triggering a new schedule
+    old valid fkeys: ['ray-gce-ray-minimal-greg-worker-0aafc0d2-compute_21401']
+    new valid fkeys: []
+before schedule: scheduled
+    schedule: wanted 112 cores in addition to leader cores 2
+GREG needed 112 more followers
+ ff: did not find enough cores
+ GREG new followers are None
+  failed to schedule
+   after schedule: scheduled
+   GREG making return with state scheduled and fkeys is []
+
+
+
+
+BUG
+  jobnumber isn't getting set to an integer? but it does in test
+
+ok try for 2 equal sized nodes -- goddamnit somehow it though there were 224 slots on one node, maybe the nodename had _ in it
+still have to fixup ssh
+
+use RAY_HEAD_IP to ssh-keyscan or ssh-copy-id ?
+
+(seems impossible) tell orte to not check hostkeys
+
+
+
+
+
+
+
+ssh without hostkey checking
+
+ssh -o StrictHostKeyChecking=no
+
+ray get-worker-ids hello-world.yaml
+ray get-worker-ips ray_bootstrap_config.yaml  # shows the external ip and apparently that can't be sshed to
+
+import ray
+ray.init(address='auto')
+print([x['NodeName'] for x in ray.nodes()])
+['10.128.0.121', '10.128.0.34']
+
+
+
+# Quota 'C2D_CPUS' exceeded.  Limit: 500.0 in region us-central1.
+gcloud compute regions describe us-central1
+- limit: 4096.0
+metric: C2_CPUS
+usage: 4.0
+- limit: 500.0
+metric: C2D_CPUS
+usage: 0.0
+
+gcloud compute project-info describe --project eht-cloud
+nothing useful -- apparently all the defaults
+
+zone list
+us-central1-[abcf]
+  [acf]: c2d
+us-east1-[bcd]
+  [cd]: c2d
+us-east4-[abc]
+  [abc]: c2d
+us-east5-[abc]
+  c: no c2
+# us-south1 no c2 or c2d
+us-west1-[abc]
+us-west2-[abc]
+us-west3-[abc]
+us-west4-[abc]
+
+
+
+
+
+
+https://cloud.google.com/docs/quota#requesting_higher_quota=
+

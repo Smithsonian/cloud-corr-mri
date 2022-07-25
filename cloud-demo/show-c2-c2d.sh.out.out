@@ -1,0 +1,45 @@
+us-central1
+- limit: 4096.0   metric: C2_CPUS   usage: 4.0
+- limit: 4096.0  metric: COMMITTED_C2_CPUS  usage: 0.0
+- limit: 500.0   metric: C2D_CPUS  usage: 0.0
+
+us-east1
+- limit: 24.0   metric: C2_CPUS   usage: 0.0
+- limit: 24.0   metric: COMMITTED_C2_CPUS   usage: 0.0
+- limit: 500.0   metric: C2D_CPUS  usage: 0.0
+
+us-east4
+- limit: 24.0   metric: C2_CPUS   usage: 0.0
+- limit: 24.0   metric: COMMITTED_C2_CPUS   usage: 0.0
+- limit: 500.0   metric: C2D_CPUS   usage: 0.0
+
+us-east5
+- limit: 0.0   metric: C2_CPUS   usage: 0.0
+- limit: 0.0   metric: COMMITTED_C2_CPUS  usage: 0.0
+- limit: 24.0   metric: C2D_CPUS   usage: 0.0
+
+us-west1
+- limit: 24.0   metric: C2_CPUS   usage: 0.0
+- limit: 24.0   metric: COMMITTED_C2_CPUS   usage: 0.0
+- limit: 500.0   metric: C2D_CPUS   usage: 0.0
+
+us-west2
+- limit: 24.0   metric: C2_CPUS   usage: 0.0
+- limit: 24.0   metric: COMMITTED_C2_CPUS  usage: 0.0
+- limit: 500.0   metric: C2D_CPUS  usage: 0.0
+
+us-west3
+- limit: 0.0   metric: C2_CPUS  usage: 0.0
+- limit: 0.0   metric: COMMITTED_C2_CPUS   usage: 0.0
+- limit: 500.0   metric: C2D_CPUS  usage: 0.0
+
+us-west4
+- limit: 0.0   metric: C2_CPUS  usage: 0.0
+- limit: 0.0   metric: COMMITTED_C2_CPUS  usage: 0.0
+- limit: 500.0   metric: C2D_CPUS  usage: 0.0
+
+
+https://console.cloud.google.com/iam-admin/quotas
+
+zone us-centra1-c has metric "unlimited" c2 and c2d
+ditto for c2 and c2d quota
