@@ -1,11 +1,14 @@
+import time
+
 import paramsurvey
+
 
 def sleep_worker(pset, system_kwargs, user_kwargs):
     time.sleep(pset['duration'])
     return {'slept': pset['duration']}
 
 
-paramsurvey.init(backend='ray', 'ray': {'address': 'auto'})
+paramsurvey.init(backend='ray', ray={'address': 'auto'})
 
 psets = [{'duration': 0.01}] * 1000
 
