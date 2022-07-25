@@ -57,6 +57,7 @@ file_mounts: {
     #./a.out": "./a.out",  # openmpi wants this on all nodes... but this kills ray when you do it
     "./hello-world-driver.py": "./hello-world-driver.py",
     "./fixup-ssh.py": "./fixup-ssh.py",
+    "./ray-prep.py": "./ray-prep.py",
 }
 
 setup_commands:

@@ -1,56 +1,24 @@
 export GOOGLE_APPLICATION_CREDENTIALS="/home/glindahl/cloud-demo/eht-cloud-b038a415dc0d.json"
 
-HPC instances:
-  c2 family (Intel)
-    c2-standard-60  # sadly no highcpu for c2
-  c2d family (AMD)
-    c2-highcpu-112
 
-  charges:
-    $0.02/vcpu hour
-    $0.003/gb hour (4gb per vcpu for both c2 and c2d standard)
-    (c2d high-cpu is 2gb per vcpu)
-    high cpu is $0.026/hour
-    normal is $0.032/hour
-    112 cores is $3/hour/node
+How did I manage to spend 20 hours on this task?
 
-ray up -y demo.yml
-ray attach demo.yml
-...
-ray down -y demo.yml
-
-
-gcloud compute images list --uri | grep greg  # should show greg-test, does not
-# all urls start with https://www.googleapis.com/compute/v1/projects/ -- no eht-cloud in the list
-
-### failing because greg-test "The URL is malformed"
-### disk libcloud-test-greg-service-account exists but gets the same error
-
-# should be more like: https://www.googleapis.com/compute/v1/projects/eht-cloud/global/images/greg-test
-# googleapiclient.errors.HttpError: <HttpError 400 when requesting https://compute.googleapis.com/compute/v1/projects/eht-cloud/zones/us-central1-c/instances?alt=json returned "Invalid value for field 'resource.disks[0].initializeParams.sourceImage': 'https://www.googleapis.com/compute/v1/projects/eht-cloud/global/images/greg-test'. The referenced image resource cannot be found.". Details: "[{'message': "Invalid value for field 'resource.disks[0].initializeParams.sourceImage': 'https://www.googleapis.com/compute/v1/projects/eht-cloud/global/images/greg-test'. The referenced image resource cannot be found.", 'domain': 'global', 'reason': 'invalid'}]">
-
-# try libcloud-test-greg-service-account:
-# googleapiclient.errors.HttpError: <HttpError 400 when requesting https://compute.googleapis.com/compute/v1/projects/eht-cloud/zones/us-central1-c/instances?alt=json returned "Invalid value for field 'resource.disks[0]': '{  "type": "PERSISTENT",  "boot": true,  "initializeParams": {    "diskSizeGb": "50"  },  "autoDelet...'. Boot disk must have a source specified.". Details: "[{'message': 'Invalid value for field \'resource.disks[0]\': \'{  "type": "PERSISTENT",  "boot": true,  "initializeParams": {    "diskSizeGb": "50"  },  "autoDelet...\'. Boot disk must have a source specified.', 'domain': 'global', 'reason': 'invalid'}]">
-
-# greg-test was built in the libcloud dir (see README)
-# ok there is a greg-test machine image
-#   source image is libcloud-test-greg-service-account
-#   it knows it's a e2-medium but when I go to create an instance, it lets me change it to anything I like
-
-# ok try2:
-# see libcloud/create-image-node.py.out -- dated feb 1
-
-# libcloud/first-try.yml does this:
-# googleapiclient.errors.HttpError: <HttpError 400 when requesting https://compute.googleapis.com/compute/v1/projects/eht-cloud/zones/us-central1-c/instances?alt=json returned "Invalid value for field 'resource.disks[0].initializeParams.sourceImage': 'greg-test'. The URL is malformed.". Details: "[{'message': "Invalid value for field 'resource.disks[0].initializeParams.sourceImage': 'greg-test'. The URL is malformed.", 'domain': 'global', 'reason': 'invalid'}]">
+google changed "something" about disk image names
+- fell back to using an image from the ray folks
+realized I had accidentally made 2 repos for one of my software pieces
+- merged them
+had to figure out syntax to customize the disk image from ray at cluster startup
+ray has some odd ideas about how ssh should be set up on a cluster
+- which disagrees with what openmpi expects
+- wrote a script which mostly works around that
+- ok, and a second script for the rest of it
+openmpi startup weirdness relating to environment variables on ubuntu
+- read the source, added a weird flag to fix
+bugs in my mpi adapter for paramsurvey not previously caught by testing
+- ended up finding an unhandled case, that fixed it
 
 
 
-hello-world
-
-apt-get install openmpi-bin libopenmpi-dev
-pip install paramsurvey[ray]
-#install paramsurvey_multimpi from github
-#pip install git+https://github.com/Smithsonian/cloud-corr-mri.git
 pip install git+https://github.com/Smithsonian/paramsurvey_multimpi.git
 
 setup_commands: []  # a list
