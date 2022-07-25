@@ -17,7 +17,16 @@ openmpi startup weirdness relating to environment variables on ubuntu
 bugs in my mpi adapter for paramsurvey not previously caught by testing
 - ended up finding an unhandled case, that fixed it
 
+discovered google cloud has a "quota" system for limiting the size of clusters
+- 2 business day response time
+- current quota is 500 cores (4 nodes) of the best compute node, 4096 cores (68 nodes) of the less best
 
+
+difx
+- have code that creates the appropriate mpi "machines file"
+- spreads the bucket reading over all of the nodes
+- need to pack up a compiled version of difx
+- take Jan Wagner's skeleton of config files
 
 pip install git+https://github.com/Smithsonian/paramsurvey_multimpi.git
 
@@ -26,73 +35,11 @@ setup_commands: []  # a list
 
 
 
-post hello-world
-
-* how do I update the persistant disk? Or I can copy over files in the yaml
-* make a skeleton of files for difx based on working/* and the golden scans
-* add a mount command for the bucket to startup
-
-pip install google-api-python-client  # it's in the ray venv
-pip install boto3  # not an explcit dependency, needed by "ray exec"
-
-sudo apt-get install apt-transport-https ca-certificates gnupg
-
-
-
-with leader 2 follower 112 wanted 114, got too few cores
-leader 112 wanted 112 is fine
-leader 2 follower 112 wanted 112 got too few cores
-/tmp/machinefile_* looks ok
-
-Ahah. it works the first time??
-ok let's run wanted 30 repeatedly OK
-wanted 70 repeatedly OK
-these are running everything on the big node
-
-added prints in client on leader node, but that does nothing
-added a unit test, no lucky
-
-running 2+68 = 70 only starts one
-then it hangs with 4 finished 2 waiting
-so apparently the followers all exited and it's just 2 leaders left?
-
-2+68 once does exit but gets the ORTE hostkey verification problem
-the machinefile has 2 lines as expected
-OK the fat node needed a "Y" to ssh to itself
-after that it gets fatal error in MPI_INIT
-
-
 TODO add a log entry for ^C
 
+ssh configuration, am I not waiting long enough for the 'added by google' lines
 
-
-
-
-
-AHAH
-
-ubuntu@ray-gce-ray-minimal-greg-head-11e47bc7-compute:~$ ssh ray-gce-ray-minimal-greg-worker-0aafc0d2-compute mpirun --help
---------------------------------------------------------------------------
-Sorry!  You were supposed to get help about:
-    orterun:usage
-But I couldn't open the help file:
-    /tmp/usr/share/openmpi/help-orterun.txt: No such file or directory.  Sorry!
------------------------------------------------------------------------
-
-but
-
-ubuntu@ray-gce-ray-minimal-greg-worker-0aafc0d2-compute:~$ mpirun --help
-mpirun (Open MPI) 4.0.2
-
-ubuntu@ray-gce-ray-minimal-greg-head-11e47bc7-compute:~$ ssh ray-gce-ray-minimal-greg-worker-0aafc0d2-compute printenv | grep OPAL
-... is empty, should be OPAL_PREFIX=/usr
-
-but hello-world-env.c did print OPAL_PREFIX=/usr on both nodes
-
-
-
-
-
+that one last bug with being surprised to be exiting and mpi
 
 
 with leader=2 follow=112 wanted=114 still gets too few cores on 2nd and 3rd run
