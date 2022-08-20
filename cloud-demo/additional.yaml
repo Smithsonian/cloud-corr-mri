@@ -1,0 +1,14 @@
+max_workers: 6
+
+available_node_types.ray_head.resources: {"CPU": 112}
+available_node_types.ray_head.node_config.machineType: c2d-highcpu-112
+available_node_types.ray_head.node_config.disks.[0].initializeParams.sourceImage: projects/deeplearning-platform-release/global/images/family/common-cpu
+available_node_types.ray_head.max_workers: 0
+
+available_node_types.ray_worker.min_workers: 1
+available_node_types.ray_worker.max_workers: 1
+available_node_types.ray_worker.resources: {"CPU": 112}
+available_node_types.ray_worker.node_config.machineType: c2d-highcpu-112
+available_node_types.ray_worker.node_config.disks.[0].initializeParams.sourceImage: projects/deeplearning-platform-release/global/images/family/common-cpu
+#available_node_types.ray_worker.node_config.schedulingConfig.preemptible: true
+

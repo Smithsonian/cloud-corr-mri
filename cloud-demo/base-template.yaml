@@ -1,0 +1,84 @@
+cluster_name: gce-ray-minimal-greg  # this works despite the regex claiming that '-' is not allwoed
+
+max_workers: 6  # cluster_wide, also default for available_node_types...max_workers
+
+provider:
+    type: gcp
+    region: us-central1
+    availability_zone: us-central1-c
+    project_id: eht-cloud # Globally unique project id
+
+available_node_types:
+    ray_head:
+        #resources: {"CPU": 2}
+        resources: {"CPU": 112}
+        node_config:
+            #machineType: n1-standard-2
+            machineType: c2d-highcpu-112
+            disks:
+                - boot: true
+                  autoDelete: true
+                  type: PERSISTENT
+                  initializeParams:
+                      diskSizeGb: 50
+                      sourceImage: projects/deeplearning-platform-release/global/images/family/common-cpu
+        max_workers: 0
+    ray_worker:
+        min_workers: 1
+        max_workers: 1
+        resources: {"CPU": 112}
+        node_config:
+            machineType: c2d-highcpu-112
+            disks:
+                - boot: true
+                  autoDelete: true
+                  type: PERSISTENT
+                  initializeParams:
+                      diskSizeGb: 50
+                      sourceImage: projects/deeplearning-platform-release/global/images/family/common-cpu
+            schedulingConfig:
+                 preemptible: true
+
+file_mounts: {
+    "./apt-get-wait.sh": './apt-get-wait.sh',
+    "./hello-world.c": "./hello-world.c",
+    #./a.out": "./a.out",  # openmpi wants this on all nodes... but this kills ray when you do it
+    "./hello-world-driver.py": "./hello-world-driver.py",
+    "./fixup-ssh.py": "./fixup-ssh.py",
+    "./ray-prep.py": "./ray-prep.py",
+}
+
+setup_commands:
+    - pip install paramsurvey[ray]
+    - pip install git+https://github.com/Smithsonian/paramsurvey_multimpi.git
+    - yes '' | ssh-keygen -N ''
+    # ray runs "apt get -y upgrade" in the background so we can't get the lock until that finishes... 4-5 minutes
+    # fortunately the ray image does have openmpi installed
+    #- sudo apt-get install openmpi-bin libopenmpi-dev
+    - mkdir ~/bucket
+    - gcsfuse greg-transfer-test-nov-2021 ~/bucket
+    - mpicc hello-world.c  # on all nodes
+
+head_start_ray_commands:
+    - ray disable-usage-stats >/dev/null 2>&1 || /bin/true
+    - ray stop
+    - >-
+        ray start
+        --head
+        --port=6379
+        --object-manager-port=8076
+        --autoscaling-config=~/ray_bootstrap_config.yaml
+
+worker_start_ray_commands:
+    - ray disable-usage-stats >/dev/null 2>&1 || /bin/true
+    - ray stop
+    - echo GREG worker RAY_HEAD_IP is $RAY_HEAD_IP
+    - >-
+        ray start
+        --address=$RAY_HEAD_IP:6379
+        --object-manager-port=8076
+
+head_node_type: ray_head
+
+auth:
+    ssh_user: ubuntu
