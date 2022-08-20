@@ -5,5 +5,28 @@ they want me to use preemptable nodes for c2d
 c2-standard-60  # quota 4096 cores
 c2d-highcpu-112  # quota 10k cores
 
-
 ./make-yaml.py base-template.yml machineType c2-standard-60 resources '{"CPU": 60}'
+
+
+actual quota is
+  us-central1-c c2d unlimited
+  us-central1-c c2 unlimited
+some other quotes show as 500 cores?!
+
+500 cores is 4 c2d or 8 c2
+
+c2.7 works
+c2d.3 works
+
+c2.20 does not work
+   started 20:29
+   2022-08-20 20:36:50,807 INFO autoscaler.py:469 -- StandardAutoscaler: Terminating the node with id ray-gce-ray-minimal-greg-worker-fe2fb1a0-compute and ip 10.128.0.145. (max_workers_per_type)
+
+In the ray tests it's manipulated like this: config["available_node_types"]["p2.8xlarge"]["min_workers"] = 3
+
+that's 20 for c2.20
+it managed to start 10 workers before this started happening
+
+AUTOSCALER_MAX_CONCURRENT_LAUNCHES defaults to 10
+AUTOSCALER_MAX_LAUNCH_BATCH defaults to 5
+

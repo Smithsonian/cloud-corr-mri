@@ -40,7 +40,7 @@ available_node_types:
                  preemptible: true
 
 file_mounts: {
-    "./apt-get-wait.sh": './apt-get-wait.sh',
+    #"./apt-get-wait.sh": './apt-get-wait.sh',
     "./hello-world.c": "./hello-world.c",
     #./a.out": "./a.out",  # openmpi wants this on all nodes... but this kills ray when you do it
     "./hello-world-driver.py": "./hello-world-driver.py",
