@@ -1,3 +1,9 @@
 I now have a quota for 4096 c2 and 10k c2d nodes
   in the us-centra1-c availability zone
 they want me to use preemptable nodes for c2d
+
+c2-standard-60  # quota 4096 cores
+c2d-highcpu-112  # quota 10k cores
+
+
+./make-yaml.py base-template.yml machineType c2-standard-60 resources '{"CPU": 60}'

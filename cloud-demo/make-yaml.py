@@ -36,7 +36,7 @@ def load_one_line(existing, k, v):
     final = things[-1]
     if not isinstance(partial, dict):
         raise ValueError('last partial must be a dict, but is instead '+type(partial))
-    partial[final] = v
+    partial[final] = yaml.safe_load(v)
 
 
 def load_one_thing(existing, thing):
@@ -77,6 +77,8 @@ aliases = {
         'available_node_types.ray_worker.node_config.machineType:',
     ],
     'resources': [
+        'available_node_types.ray_head.resources:',
+        'available_node_types.ray_worker.resources:',
     ],
     'sourceImage': [
         'available_node_types.ray_head.node_config.disks.[0].initializeParams.sourceImage:',
