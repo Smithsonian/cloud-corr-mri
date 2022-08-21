@@ -1,4 +1,4 @@
-cluster_name: gce-ray-minimal-greg  # this works despite the regex claiming that '-' is not allwoed
+cluster_name: greg-cloud-mri
 
 max_workers: 6  # cluster_wide, also default for available_node_types...max_workers
 
@@ -60,6 +60,7 @@ setup_commands:
     - mpicc hello-world.c  # on all nodes
 
 head_start_ray_commands:
+    - echo 2048 > /proc/sys/net/core/somaxconn  # gcs server can overrun the usual 128
     - ray disable-usage-stats >/dev/null 2>&1 || /bin/true
     - ray stop
     - >-
