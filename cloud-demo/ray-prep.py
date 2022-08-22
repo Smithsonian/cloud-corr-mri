@@ -10,7 +10,7 @@ def sleep_worker(pset, system_kwargs, user_kwargs):
 
 paramsurvey.init(backend='ray', ray={'address': 'auto'})
 
-psets = [{'duration': 0.01}] * 1000
+psets = [{'duration': 0.1}] * 1000
 
 results = paramsurvey.map(sleep_worker, psets, verbose=1)
 
