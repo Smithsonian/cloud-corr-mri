@@ -1,5 +1,6 @@
 import argparse
 import subprocess
+import sys
 
 import paramsurvey
 
@@ -9,14 +10,23 @@ import paramsurvey_multimpi.client as client
 # Google cloud HPC checklist https://cloud.google.com/architecture/best-practices-for-using-mpi-on-compute-engine#checklist
 # Google storage: https://cloud.google.com/storage/docs/best-practices
 
+def out_func(user_ret, system_kwargs, user_kwargs):
+    print('out_func: saw an exit of', user_ret)
+    sys.stdout.flush()
+    kind = user_ret.get('pset', {}).get('kind')
+    if kind == 'leader':
+        user_kwargs['leader_count'] -= 1
+        if user_kwargs['leader_count'] == 0:
+            pass
+
+
 def main():
     parser = argparse.ArgumentParser(description='difx_paramsurvey_driver, run inside ray')
     parser.add_argument('--ray', action='store_true', default=True)
     args = parser.parse_args()
 
-    foo = client.start_multimpi_server(hostport=':8889')
-    server_url = foo['multimpi_server_url']
-    print('GREG: server_url is', server_url)
+    user_kwargs = {}
+    client.start_multimpi_server(hostport=':8889', user_kwargs=user_kwargs)
 
     if args.ray:
         kwargs = {
@@ -29,15 +39,21 @@ def main():
         }
     paramsurvey.init(**kwargs)
 
-    wanted = 224
+    leaders = 1
+    user_kwargs['leader_count'] = leaders
+    followers = 9
+    user_kwargs['follower_count'] = followers
+    ncores = 60
+    wanted = 600
+    repeats = 1
+
     # I don't know why OPAL_PREFIX isn't getting set on the workers
     run_args = 'mpirun -x OPAL_PREFIX=/usr --machinefile %MACHINEFILE% -np {} ./a.out'.format(wanted)
-    psets = [
-        {'kind': 'leader', 'ncores': 112, 'run_args': run_args, 'wanted': wanted},
-        {'kind': 'follower', 'ncores': 112},
-    ]
+    psets = []
+    psets.extend([{'kind': 'leader', 'ncores': ncores, 'run_args': run_args, 'wanted': wanted}] * leaders)
+    psets.extend([{'kind': 'follower', 'ncores': ncores}] * followers)
 
-    psets = psets * 3
+    psets = psets * repeats
 
     # this is how ray backend args are specified
     # XXX shouldn't paramsurvey hide this?
@@ -46,21 +62,18 @@ def main():
             p['ray'] = {'num_cores': p.get('ncores')}
 
     # example of how to return stdout from the cli process
-    user_kwargs = {'run_kwargs':
-                   {
-                       #'stdout': subprocess.PIPE, 'encoding': 'utf-8',
-                       #'stderr': subprocess.PIPE, 'encoding': 'utf-8',
-                   }
-                  }
+    run_kwargs = {
+        'stdout': subprocess.PIPE, 'encoding': 'utf-8',
+        'stderr': subprocess.PIPE, 'encoding': 'utf-8',
+    }
+    user_kwargs['run_kwargs'] = run_kwargs
     user_kwargs['mpi'] = 'openmpi'
-    user_kwargs['multimpi_server_url'] = server_url
+
     #user_kwargs['machinefile'] = 'DiFX'
     #user_kwargs['DiFX_datastreams'] = 1  # should come from joblist file
     #user_kwargs['DiFX_jobname'] = 'difx_jobname'  # should come from joblist file
 
-    #user_kwargs = {}
-
-    results = paramsurvey.map(client.multimpi_worker, psets, user_kwargs=user_kwargs)
+    results = paramsurvey.map(client.multimpi_worker, psets, user_kwargs=user_kwargs, out_func=out_func)
 
     client.end_multimpi_server()
 
