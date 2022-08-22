@@ -22,7 +22,7 @@ print('Gathering host keys')
 for ip in ips:
     print(' ', ip)
     sys.stdout.flush()
-    cmd = 'ssh -i -i ~/.ssh/id_rsa ~/ray_bootstrap_key.pem -o StrictHostKeyChecking=no '+ip+' echo foo'
+    cmd = 'ssh -i ~/.ssh/id_rsa -i ~/ray_bootstrap_key.pem -o StrictHostKeyChecking=no '+ip+' echo foo'
     subprocess.run(shlex.split(cmd))
 
 # copy over head identity that I made
