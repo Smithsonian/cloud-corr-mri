@@ -10,7 +10,6 @@ provider:
 
 available_node_types:
     ray_head:
-        #resources: {"CPU": 2}
         resources: {"CPU": 112}
         node_config:
             #machineType: n1-standard-2
@@ -51,19 +50,25 @@ file_mounts: {
 setup_commands:
     - pip install paramsurvey[ray]
     - pip install git+https://github.com/Smithsonian/paramsurvey_multimpi.git
-    - yes '' | ssh-keygen -N ''
     # ray runs "apt get -y upgrade" in the background so we can't get the lock until that finishes... 4-5 minutes
     # fortunately the ray image does have openmpi installed
     #- sudo apt-get install openmpi-bin libopenmpi-dev
-    - mkdir ~/bucket
-    - gcsfuse greg-transfer-test-nov-2021 ~/bucket
+    - mkdir -p ~/bucket
+    - gcsfuse greg-transfer-test-nov-2021 ~/bucket || /bin/true  # assume a failure means it's already mounted?
     - mpicc hello-world.c  # on all nodes
 
+head_setup_commands:
+    - (yes '' | ssh-keygen -N '') || /bin/true  # will not overwrite. my code propagates this public key to workers.
+    - sudo /sbin/sysctl -w net.core.somaxconn=2048 # gcs server can overrun the usual 128
+
+worker_setup_commands:
+    - (yes '' | ssh-keygen -N '') || /bin/true  # will not overwrite. intended to create the directory with proper permissions.
+
 head_start_ray_commands:
-    - echo 2048 > /proc/sys/net/core/somaxconn  # gcs server can overrun the usual 128
     - ray disable-usage-stats >/dev/null 2>&1 || /bin/true
     - ray stop
     - >-
+        ulimit -n 1048576;  # needs to be with the ray start because each line is a separate ssh
         ray start
         --head
         --port=6379
@@ -73,7 +78,6 @@ head_start_ray_commands:
 worker_start_ray_commands:
     - ray disable-usage-stats >/dev/null 2>&1 || /bin/true
     - ray stop
-    - echo GREG worker RAY_HEAD_IP is $RAY_HEAD_IP
     - >-
         ray start
         --address=$RAY_HEAD_IP:6379
