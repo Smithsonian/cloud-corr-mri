@@ -55,6 +55,10 @@ def main():
 
     psets = psets * repeats
 
+    # this doesn't work properly with multimpi because of openmpi's use of ssh from the leader nodes
+    #import ray.autoscaler.sdk
+    #ray.autoscaler.sdk.request_resources(num_cpus=ncores * len(psets))
+
     # this is how ray backend args are specified
     # XXX shouldn't paramsurvey hide this?
     for p in psets:
@@ -76,6 +80,9 @@ def main():
     results = paramsurvey.map(client.multimpi_worker, psets, user_kwargs=user_kwargs, out_func=out_func)
 
     client.end_multimpi_server()
+
+    # scale back down to just the head node
+    #ray.autoscaler.sdk.request_resources(num_cpus=ncores)
 
     #assert results.progress.failures == 0
     print('driver: after map, failures is', results.progress.failures)
