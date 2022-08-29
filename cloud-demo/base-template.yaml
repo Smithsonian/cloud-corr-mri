@@ -67,8 +67,9 @@ worker_setup_commands:
 head_start_ray_commands:
     - ray disable-usage-stats >/dev/null 2>&1 || /bin/true
     - ray stop
+    # ulimit needs to be with the ray start because each line is a separate ssh
     - >-
-        ulimit -n 1048576;  # needs to be with the ray start because each line is a separate ssh
+        ulimit -n 1048576;
         ray start
         --head
         --port=6379
