@@ -22,6 +22,7 @@ print('Gathering host keys')
 for ip in ips:
     print(' ', ip)
     sys.stdout.flush()
+    # this can fail with connection reset if the timing is perfectly bad
     cmd = 'ssh -i ~/.ssh/id_rsa -i ~/ray_bootstrap_key.pem -o StrictHostKeyChecking=no '+ip+' echo foo'
     subprocess.run(shlex.split(cmd))
 
