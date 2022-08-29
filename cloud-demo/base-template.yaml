@@ -68,9 +68,10 @@ head_start_ray_commands:
     - ray disable-usage-stats >/dev/null 2>&1 || /bin/true
     - ray stop
     # ulimit needs to be with the ray start because each line is a separate ssh
+    # autoscaler env vars need to be here to have an effect
     - >-
         ulimit -n 1048576;
-        ray start
+        AUTOSCALER_MAX_CONCURRENT_LAUNCHES=200 AUTOSCALER_MAX_LAUNCH_BATCH=20 ray start
         --head
         --port=6379
         --object-manager-port=8076
